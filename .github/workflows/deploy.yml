@@ -1,0 +1,54 @@
+name: Publicar POS Init Web
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: github-pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      # Descargar el proyecto
+      - name: Descargar código
+        uses: actions/checkout@v4
+
+      # Preparar Node.js
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # Instalar dependencias
+      - name: Instalar dependencias
+        run: npm ci
+
+      # Compilar React y Vite
+      - name: Compilar POS Init Web
+        run: npm run build
+
+      # Configurar GitHub Pages
+      - name: Configurar Pages
+        uses: actions/configure-pages@v5
+
+      # Subir archivos compilados
+      - name: Preparar publicación
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./dist
+
+      # Publicar página
+      - name: Publicar POS Init Web
+        uses: actions/deploy-pages@v4
