@@ -12,7 +12,7 @@ import {
   where,
 } from "firebase/firestore";
 
-import { onAuthStateChanged } from "firebase/auth";
+import { onAuthStateChanged, signOut } from "firebase/auth";
 
 import Ventas from "./components/Ventas";
 import ActivarCaja from "./components/ActivarCaja";
@@ -301,6 +301,35 @@ function AppPrivada() {
   };
 
   // ============================================================
+  // REGRESAR A ACTIVAR CAJA (CIERRA SESIÓN ADMINISTRADOR)
+  // ============================================================
+
+  const regresarActivacion = async () => {
+    if (buscandoUsuario) return;
+
+    try {
+      setMensaje("");
+      await signOut(auth);
+
+      localStorage.removeItem("posInitCajaActivada");
+      localStorage.removeItem("posInitOwnerUid");
+      localStorage.removeItem("posInitBusinessId");
+
+      setCajaActivada(false);
+      setOwnerUid("");
+      setBusinessIdCaja("");
+      setBusinessId("");
+      setNumeroUsuario("");
+      setUsuarioSeleccionado(null);
+      setSesionCaja(false);
+      setPantalla("login");
+    } catch (error) {
+      console.error("Error al regresar a activación:", error);
+      setMensaje("No se pudo cerrar la sesión. Inténtalo de nuevo.");
+    }
+  };
+
+  // ============================================================
   // PIN
   // ============================================================
 
@@ -498,6 +527,28 @@ function AppPrivada() {
 
       <section className="tarjeta-login">
 
+        <button
+          type="button"
+          className="boton-regresar"
+          onClick={regresarActivacion}
+          disabled={buscandoUsuario}
+          style={{
+            width: "auto",
+            display: "inline-flex",
+            alignItems: "center",
+            padding: "10px 16px",
+            marginBottom: "18px",
+            background: "#edf4fa",
+            color: "#123450",
+            border: "1px solid #d4e1ed",
+            borderRadius: "10px",
+            fontWeight: 700,
+            cursor: "pointer",
+          }}
+        >
+          ← Regresar
+        </button>
+
         <div className="marca">
 
           <div className="logo-pos">
@@ -642,4 +693,6 @@ function App() {
   return <AppPrivada />;
 }
 
+
 export default App;
+

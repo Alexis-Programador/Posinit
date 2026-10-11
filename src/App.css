@@ -2925,3 +2925,372 @@ button:disabled {
     font-size: 10px;
   }
 }
+/* =========================================================
+   POS INIT WEB - ACTIVACIÓN DE CAJA
+   Izquierda | formulario centrado | ayuda a la derecha
+   ========================================================= */
+
+html, body, #root {
+  margin: 0;
+  width: 100%;
+  min-height: 100%;
+}
+
+html { box-sizing: border-box; }
+*, *::before, *::after { box-sizing: inherit; }
+
+/* Se limita a la pantalla de activación para no alterar ventas ni PIN. */
+.pagina-login.pagina-activar-caja {
+  width: 100%;
+  min-height: 100dvh;
+  height: 100dvh;
+  padding: clamp(12px, 1.5vw, 22px);
+  margin: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background: linear-gradient(135deg, #07131f 0%, #0e2235 55%, #102d45 100%);
+  color: #fff;
+}
+
+.pagina-activar-caja .login-contenedor {
+  width: 100%;
+  max-width: 1440px;
+  max-height: 100%;
+  min-width: 0;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(330px, 440px) minmax(0, 1fr);
+  grid-template-areas: "bienvenida formulario ayuda";
+  gap: clamp(12px, 1.4vw, 20px);
+  align-items: stretch;
+}
+
+.pagina-activar-caja .login-panel-bienvenida,
+.pagina-activar-caja .login-panel-informacion,
+.pagina-activar-caja .tarjeta-login {
+  width: 100%;
+  min-width: 0;
+  max-width: none;
+  min-height: 0;
+  max-height: calc(100dvh - 24px);
+  margin: 0;
+  border-radius: 22px;
+  box-sizing: border-box;
+}
+
+.pagina-activar-caja .login-panel-bienvenida,
+.pagina-activar-caja .login-panel-informacion {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 16px;
+  padding: clamp(16px, 1.7vw, 26px);
+  border: 1px solid rgba(255, 255, 255, .15);
+  background: linear-gradient(145deg, #173954, #0b2033);
+  color: #fff;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+.pagina-activar-caja .login-panel-bienvenida::-webkit-scrollbar,
+.pagina-activar-caja .login-panel-informacion::-webkit-scrollbar { display: none; }
+
+.pagina-activar-caja .login-panel-bienvenida { grid-area: bienvenida; }
+.pagina-activar-caja .login-panel-informacion { grid-area: ayuda; }
+
+.pagina-activar-caja .tarjeta-login {
+  grid-area: formulario;
+  grid-column: auto;
+  grid-row: auto;
+  align-self: center;
+  padding: clamp(22px, 2.2vw, 34px);
+  background: #fff;
+  color: #0d1b2a;
+  border: 1px solid rgba(255,255,255,.3);
+  box-shadow: 0 20px 60px rgba(0,0,0,.25);
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+.pagina-activar-caja .tarjeta-login::-webkit-scrollbar { display: none; }
+
+.pagina-activar-caja .marca { margin-bottom: 25px; }
+.pagina-activar-caja .encabezado { margin-bottom: 21px; }
+.pagina-activar-caja .tarjeta-login form input { height: 49px; margin-bottom: 15px; }
+.pagina-activar-caja .tarjeta-login form > button[type="submit"] { height: 50px; }
+.pagina-activar-caja .pie-login { margin-top: 20px; padding-top: 16px; }
+
+.pagina-activar-caja .bienvenida-contenido,
+.pagina-activar-caja .login-info-encabezado {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.pagina-activar-caja .bienvenida-icono,
+.pagina-activar-caja .login-info-icono {
+  width: 50px;
+  height: 50px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 14px;
+  background: rgba(255,255,255,.1);
+  font-size: 24px;
+}
+
+.pagina-activar-caja .bienvenida-etiqueta,
+.pagina-activar-caja .login-info-etiqueta {
+  color: #a8d6ff;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 1.1px;
+}
+
+.pagina-activar-caja .login-panel-bienvenida h2,
+.pagina-activar-caja .login-panel-informacion h2 {
+  margin: 0;
+  color: #fff;
+  font-size: clamp(20px, 2.2vw, 28px);
+  line-height: 1.2;
+  font-weight: 800;
+}
+
+.pagina-activar-caja .bienvenida-descripcion,
+.pagina-activar-caja .login-panel-informacion p,
+.pagina-activar-caja .bienvenida-destacado p {
+  margin: 0;
+  color: #d0dfeb;
+  font-size: 12px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.pagina-activar-caja .bienvenida-destacado,
+.pagina-activar-caja .login-info-bloque {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  min-width: 0;
+  padding: 13px;
+  border-radius: 13px;
+  border: 1px solid rgba(255,255,255,.13);
+  background: rgba(255,255,255,.07);
+}
+
+.pagina-activar-caja .bienvenida-destacado-icono { flex-shrink: 0; font-size: 21px; }
+.pagina-activar-caja .bienvenida-destacado strong,
+.pagina-activar-caja .login-info-bloque h3 {
+  display: block;
+  margin: 0 0 6px;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 750;
+}
+
+.pagina-activar-caja .login-info-bloques {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.pagina-activar-caja .login-info-bloque-icono {
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  background: rgba(255,255,255,.1);
+  font-size: 19px;
+}
+
+.pagina-activar-caja .login-info-bloque p + p { margin-top: 7px; }
+.pagina-activar-caja .bienvenida-pie,
+.pagina-activar-caja .login-info-pie {
+  padding-top: 13px;
+  border-top: 1px solid rgba(255,255,255,.12);
+  color: #b5c9d8;
+  font-size: 11px;
+}
+
+/* Evita desplazamiento de la página en pantallas de escritorio.
+   En alturas pequeñas se permite desplazamiento para no cortar campos. */
+@media (max-height: 640px) and (min-width: 901px) {
+  .pagina-login.pagina-activar-caja { height: auto; min-height: 100dvh; overflow-y: auto; }
+  .pagina-activar-caja .login-contenedor { max-height: none; }
+  .pagina-activar-caja .login-panel-bienvenida,
+  .pagina-activar-caja .login-panel-informacion,
+  .pagina-activar-caja .tarjeta-login { max-height: none; }
+}
+
+/* En tabletas se conserva el formulario arriba y los paneles accesibles. */
+@media (max-width: 900px) {
+  .pagina-login.pagina-activar-caja { height: auto; min-height: 100dvh; overflow: visible; }
+  .pagina-activar-caja .login-contenedor {
+    max-width: 600px;
+    max-height: none;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: "formulario" "bienvenida" "ayuda";
+  }
+  .pagina-activar-caja .login-panel-bienvenida,
+  .pagina-activar-caja .login-panel-informacion,
+  .pagina-activar-caja .tarjeta-login { max-height: none; }
+}
+
+@media (max-width: 480px) {
+  .pagina-login.pagina-activar-caja { padding: 12px; }
+  .pagina-activar-caja .tarjeta-login { padding: 24px 20px; }
+  .pagina-activar-caja .login-panel-bienvenida,
+  .pagina-activar-caja .login-panel-informacion { padding: 20px; }
+}
+
+/* Botón regresar para el acceso por usuario/PIN */
+.boton-regresar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: auto;
+  padding: 10px 16px;
+  margin-bottom: 20px;
+  background: #edf4fa;
+  color: #123450;
+  border: 1px solid #d4e1ed;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background .2s, transform .2s;
+}
+.boton-regresar:hover { background: #dbeaf7; transform: translateX(-3px); }
+
+/* =========================================================
+   AJUSTE FINAL: conserva los estilos existentes de POS Init.
+   Sólo se ajusta la pantalla de activación y el acceso a caja.
+   ========================================================= */
+
+/* Activación: tres paneles de igual altura, sin barra exterior
+   en pantallas de escritorio con espacio suficiente. */
+@media (min-width: 901px) and (min-height: 641px) {
+  .pagina-login.pagina-activar-caja {
+    height: 100dvh;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .pagina-activar-caja .login-contenedor {
+    height: 100%;
+    max-height: 100%;
+    grid-template-columns: minmax(0, 1fr) minmax(330px, 440px) minmax(0, 1fr);
+    align-items: stretch;
+  }
+
+  .pagina-activar-caja .login-panel-bienvenida,
+  .pagina-activar-caja .tarjeta-login,
+  .pagina-activar-caja .login-panel-informacion {
+    height: 100%;
+    max-height: 100%;
+    min-width: 0;
+    min-height: 0;
+    overflow-x: hidden;
+  }
+}
+
+/* Acceso con código de negocio y usuario: tarjeta compacta,
+   centrada; no se expande a todo el ancho. */
+.pagina-login:not(.pagina-activar-caja) {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100dvh;
+  padding: 18px;
+}
+
+.pagina-login:not(.pagina-activar-caja) > .tarjeta-login {
+  width: min(460px, 100%);
+  max-width: 460px;
+  height: auto;
+  margin-inline: auto;
+}
+
+/* El botón Regresar conserva su tamaño natural. */
+.pagina-login:not(.pagina-activar-caja) .boton-regresar {
+  width: auto;
+  max-width: 100%;
+  align-self: flex-start;
+}
+
+
+/* =========================================================
+   CORRECCIÓN 11/10 - tres columnas visibles en escritorio.
+   No se elimina ni sustituye ninguna regla de ventas/PIN.
+   ========================================================= */
+@media (min-width: 901px) {
+  html:has(.pagina-activar-caja),
+  body:has(.pagina-activar-caja),
+  #root:has(.pagina-activar-caja) {
+    height: 100%;
+    overflow: hidden;
+  }
+
+  .pagina-login.pagina-activar-caja {
+    width: 100%;
+    height: 100dvh;
+    min-height: 0;
+    padding: 12px;
+    overflow: hidden;
+  }
+
+  .pagina-activar-caja .login-contenedor {
+    height: 100%;
+    min-height: 0;
+    max-height: 100%;
+    grid-template-columns: minmax(0, 1fr) minmax(330px, 440px) minmax(0, 1fr);
+    gap: 12px;
+    align-items: stretch;
+  }
+
+  .pagina-activar-caja .login-panel-bienvenida,
+  .pagina-activar-caja .tarjeta-login,
+  .pagina-activar-caja .login-panel-informacion {
+    height: 100%;
+    min-height: 0;
+    max-height: 100%;
+    align-self: stretch;
+    overflow-x: hidden;
+    border-radius: 18px;
+  }
+
+  .pagina-activar-caja .login-panel-bienvenida,
+  .pagina-activar-caja .login-panel-informacion {
+    padding: 16px;
+    gap: 9px;
+    overflow-y: auto;
+  }
+
+  .pagina-activar-caja .tarjeta-login {
+    padding: clamp(16px, 2vw, 27px);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    overflow-y: auto;
+  }
+
+  .pagina-activar-caja .bienvenida-contenido,
+  .pagina-activar-caja .login-info-encabezado { gap: 8px; }
+  .pagina-activar-caja .login-info-bloques { gap: 8px; }
+  .pagina-activar-caja .login-info-bloque,
+  .pagina-activar-caja .bienvenida-destacado { padding: 10px; gap: 8px; }
+  .pagina-activar-caja .login-panel-informacion p,
+  .pagina-activar-caja .bienvenida-descripcion,
+  .pagina-activar-caja .bienvenida-destacado p { font-size: 11px; line-height: 1.45; }
+  .pagina-activar-caja .login-panel-bienvenida h2,
+  .pagina-activar-caja .login-panel-informacion h2 { font-size: 21px; }
+  .pagina-activar-caja .marca { margin-bottom: 18px; }
+  .pagina-activar-caja .encabezado { margin-bottom: 16px; }
+  .pagina-activar-caja .tarjeta-login form input { height: 45px; margin-bottom: 11px; }
+  .pagina-activar-caja .tarjeta-login form > button[type="submit"] { height: 46px; }
+  .pagina-activar-caja .pie-login { margin-top: 14px; padding-top: 12px; }
+}
