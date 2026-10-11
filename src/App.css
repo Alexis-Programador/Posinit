@@ -3294,3 +3294,51 @@ html { box-sizing: border-box; }
   .pagina-activar-caja .tarjeta-login form > button[type="submit"] { height: 46px; }
   .pagina-activar-caja .pie-login { margin-top: 14px; padding-top: 12px; }
 }
+
+/* ==========================================
+   POS INIT - ACCESO A CAJA SIN BARRA
+   ========================================== */
+
+@media (min-width: 851px) and (min-height: 620px) {
+
+  html,
+  body,
+  #root {
+    height: 100%;
+    margin: 0;
+  }
+
+  body {
+    overflow: hidden;
+  }
+
+  .pagina-login:not(.pagina-activar-caja) {
+    width: 100%;
+    height: 100dvh;
+    min-height: 0;
+    padding: 12px;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    overflow: hidden;
+  }
+
+  .pagina-login:not(.pagina-activar-caja) .tarjeta-login {
+    width: 100%;
+    max-width: 460px;
+    height: auto;
+    max-height: calc(100dvh - 24px);
+
+    padding: 24px 34px;
+    margin: 0 auto;
+
+    overflow-y: auto;
+    scrollbar-width: none;
+  }
+
+  .pagina-login:not(.pagina-activar-caja) .tarjeta-login::-webkit-scrollbar {
+    display: none;
+  }
+}
