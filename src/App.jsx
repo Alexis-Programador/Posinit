@@ -523,7 +523,24 @@ function AppPrivada() {
   // ============================================================
 
   return (
-    <main className="pagina-login">
+    <main className="pagina-login pagina-acceso-caja">
+      <div className="acceso-tres-paneles">
+        <aside className="acceso-panel-info" aria-label="Información del código de negocio">
+          <div className="acceso-info-icono">🏪</div>
+          <span className="acceso-info-etiqueta">CÓDIGO DE NEGOCIO</span>
+          <h2>¿Qué es el código de negocio?</h2>
+          <p>Es el código que identifica a tu negocio en POS Init y permite conectar esta caja con él.</p>
+          <div className="acceso-info-pasos">
+            <h3>📍 ¿Dónde se consigue?</h3>
+            <ol>
+              <li>Abre la aplicación móvil <strong>POS Init</strong>.</li>
+              <li>Entra a <strong>Ajustes ⚙️</strong>.</li>
+              <li>Busca <strong>Código de negocio</strong>.</li>
+              <li>Copia el código y escríbelo en el formulario.</li>
+            </ol>
+          </div>
+          <p className="acceso-info-nota">El código debe pertenecer al negocio con el que se activó esta caja.</p>
+        </aside>
 
       <section className="tarjeta-login">
 
@@ -677,6 +694,25 @@ function AppPrivada() {
         </div>
 
       </section>
+
+        <aside className="acceso-panel-info" aria-label="Información del número de usuario">
+          <div className="acceso-info-icono">👤</div>
+          <span className="acceso-info-etiqueta">NÚMERO DE USUARIO</span>
+          <h2>¿Qué es el número de usuario?</h2>
+          <p>Es el número que identifica a cada empleado o cajero autorizado para entrar al punto de venta.</p>
+          <div className="acceso-info-pasos">
+            <h3>➕ ¿Cómo se consigue o crea?</h3>
+            <ol>
+              <li>Abre la aplicación móvil <strong>POS Init</strong>.</li>
+              <li>Entra a <strong>Usuarios 👥</strong>.</li>
+              <li>Pulsa el botón <strong>+</strong> para agregar un usuario.</li>
+              <li>Registra al empleado y consulta su <strong>número de usuario</strong>.</li>
+              <li>Escribe ese número en el formulario.</li>
+            </ol>
+          </div>
+          <p className="acceso-info-nota">Si ya estás registrado, solicita tu número al administrador.</p>
+        </aside>
+      </div>
 
     </main>
   );
