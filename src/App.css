@@ -3625,3 +3625,190 @@ html { box-sizing: border-box; }
     order: 2;
   }
 }
+
+/* ==========================================================
+   POS INIT - CORRECCION FINAL: ACCESO EN TRES COLUMNAS
+   Mantiene los estilos existentes y evita paneles comprimidos.
+   ========================================================== */
+@media (min-width: 1000px) {
+  html:has(.pagina-acceso-caja),
+  body:has(.pagina-acceso-caja),
+  #root:has(.pagina-acceso-caja) {
+    width: 100%; height: 100%; overflow: hidden;
+  }
+
+  .pagina-acceso-caja.pagina-login,
+  .pagina-login.pagina-acceso-caja {
+    width: 100%; height: 100dvh; min-height: 0;
+    padding: 14px 18px; margin: 0;
+    display: flex; align-items: center; justify-content: center;
+    overflow: hidden;
+    box-sizing: border-box;
+  }
+
+  .pagina-acceso-caja .acceso-tres-paneles {
+    display: grid !important;
+    width: min(100%, 1320px) !important;
+    max-width: 1320px !important;
+    height: min(640px, calc(100dvh - 28px)) !important;
+    min-height: 0 !important;
+    grid-template-columns: minmax(240px, 1fr) minmax(360px, 460px) minmax(240px, 1fr) !important;
+    gap: 14px !important;
+    align-items: stretch !important;
+    margin: 0 auto !important;
+  }
+
+  .pagina-acceso-caja .acceso-tres-paneles > * {
+    position: relative !important;
+    width: 100% !important;
+    max-width: none !important;
+    min-width: 0 !important;
+    min-height: 0 !important;
+    height: 100% !important;
+    margin: 0 !important;
+    box-sizing: border-box !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    scrollbar-width: none;
+  }
+  .pagina-acceso-caja .acceso-tres-paneles > *::-webkit-scrollbar { display: none; }
+
+  .pagina-acceso-caja .tarjeta-login {
+    padding: clamp(20px, 2.3vw, 34px) !important;
+    max-height: none !important;
+  }
+  .pagina-acceso-caja .acceso-panel-info {
+    padding: clamp(16px, 1.8vw, 26px) !important;
+    overflow-wrap: break-word;
+  }
+}
+
+@media (max-width: 999px) {
+  html:has(.pagina-acceso-caja), body:has(.pagina-acceso-caja),
+  #root:has(.pagina-acceso-caja) { height: auto; overflow-x: hidden; overflow-y: auto; }
+  .pagina-acceso-caja.pagina-login { height: auto; min-height: 100dvh; overflow: visible; }
+  .pagina-acceso-caja .acceso-tres-paneles {
+    display: grid !important; width: min(100%, 600px) !important;
+    max-width: 600px !important; height: auto !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 16px !important;
+  }
+  .pagina-acceso-caja .acceso-tres-paneles > * {
+    width: 100% !important; max-width: none !important;
+    height: auto !important; min-width: 0 !important;
+  }
+}
+
+/* ==========================================
+   POS INIT - ACCESO A CAJA
+   MISMO DISEÑO QUE ACTIVAR CAJA
+   ========================================== */
+
+@media (min-width: 901px) {
+
+  /* Pantalla completa sin barra exterior */
+  body:has(.pagina-acceso-caja),
+  html:has(.pagina-acceso-caja),
+  #root:has(.pagina-acceso-caja) {
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    overflow: hidden !important;
+  }
+
+  /* Contenedor principal */
+  .pagina-acceso-caja {
+    width: 100vw !important;
+    height: 100dvh !important;
+    min-height: 0 !important;
+    max-width: none !important;
+
+    padding: 12px !important;
+    margin: 0 !important;
+
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+
+    overflow: hidden !important;
+    box-sizing: border-box !important;
+  }
+
+  /* Los tres cuadros */
+  .pagina-acceso-caja .acceso-tres-paneles {
+    display: grid !important;
+
+    width: 100% !important;
+    max-width: none !important;
+    height: 100% !important;
+
+    grid-template-columns:
+      minmax(0, 1fr)
+      minmax(0, 1fr)
+      minmax(0, 1fr) !important;
+
+    gap: 12px !important;
+    align-items: stretch !important;
+  }
+
+  /* Cada cuadro ocupa una columna */
+  .pagina-acceso-caja .acceso-tres-paneles > * {
+    width: 100% !important;
+    max-width: none !important;
+    min-width: 0 !important;
+    height: 100% !important;
+    min-height: 0 !important;
+
+    margin: 0 !important;
+    box-sizing: border-box !important;
+
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+
+    scrollbar-width: none;
+  }
+
+  .pagina-acceso-caja
+  .acceso-tres-paneles > *::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Formulario central */
+  .pagina-acceso-caja .tarjeta-login {
+    padding: 28px !important;
+    border-radius: 22px !important;
+  }
+
+  /* Cuadros laterales */
+  .pagina-acceso-caja .acceso-panel-info {
+    padding: 22px !important;
+    border-radius: 22px !important;
+    overflow-wrap: break-word;
+  }
+}
+
+/* Adaptación a celulares */
+@media (max-width: 900px) {
+
+  .pagina-acceso-caja {
+    height: auto !important;
+    min-height: 100dvh !important;
+    overflow-y: auto !important;
+  }
+
+  .pagina-acceso-caja .acceso-tres-paneles {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+
+    width: 100% !important;
+    max-width: 600px !important;
+    height: auto !important;
+    gap: 12px !important;
+  }
+
+  .pagina-acceso-caja .acceso-tres-paneles > * {
+    width: 100% !important;
+    max-width: none !important;
+    height: auto !important;
+  }
+}
