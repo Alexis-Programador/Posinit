@@ -3401,3 +3401,227 @@ html { box-sizing: border-box; }
   .pagina-acceso-caja .acceso-panel-info:first-child { order: 1; }
   .pagina-acceso-caja .acceso-panel-info:last-child { order: 2; }
 }
+
+/* ==========================================
+   POS INIT - ACCESO A CAJA
+   TRES PANELES HORIZONTALES
+   ========================================== */
+
+.pagina-acceso-caja {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 100dvh;
+  padding: 16px;
+
+  display: flex;
+  justify-content: center;
+  align-items: center;
+
+  overflow-x: hidden;
+}
+
+/* CONTENEDOR DE LOS TRES PANELES */
+
+.pagina-acceso-caja .acceso-tres-paneles {
+  width: min(100%, 1340px);
+
+  display: grid;
+
+  grid-template-columns:
+    minmax(0, 1fr)
+    minmax(340px, 460px)
+    minmax(0, 1fr);
+
+  align-items: stretch;
+  gap: 16px;
+}
+
+/* TODOS LOS PANELES */
+
+.pagina-acceso-caja .acceso-tres-paneles > * {
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+/* PANEL CENTRAL */
+
+.pagina-acceso-caja .tarjeta-login {
+  width: 100%;
+  max-width: none;
+  height: 100%;
+  margin: 0;
+
+  box-sizing: border-box;
+}
+
+/* PANELES INFORMATIVOS */
+
+.pagina-acceso-caja .acceso-panel-info {
+  background: linear-gradient(
+    145deg,
+    #183c5b,
+    #0c2134
+  );
+
+  color: white;
+
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 22px;
+
+  padding: clamp(16px, 2vw, 28px);
+
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* ICONOS */
+
+.pagina-acceso-caja .acceso-info-icono {
+  font-size: 28px;
+}
+
+/* ETIQUETAS */
+
+.pagina-acceso-caja .acceso-info-etiqueta {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 1.2px;
+  color: #a5d6ff;
+}
+
+/* TÍTULOS */
+
+.pagina-acceso-caja .acceso-panel-info h2 {
+  font-size: clamp(19px, 1.8vw, 25px);
+  line-height: 1.2;
+  margin: 0;
+  color: white;
+}
+
+/* DESCRIPCIONES */
+
+.pagina-acceso-caja .acceso-panel-info p {
+  margin: 0;
+  color: #dceaf5;
+  line-height: 1.5;
+  font-size: 13px;
+}
+
+/* CUADROS DE INSTRUCCIONES */
+
+.pagina-acceso-caja .acceso-info-pasos {
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 14px;
+
+  background: rgba(255, 255, 255, 0.07);
+
+  padding: 14px;
+}
+
+.pagina-acceso-caja .acceso-info-pasos h3 {
+  color: white;
+  font-size: 15px;
+  margin: 0 0 10px;
+}
+
+.pagina-acceso-caja .acceso-info-pasos ol {
+  padding-left: 20px;
+  margin: 0;
+}
+
+.pagina-acceso-caja .acceso-info-pasos li {
+  color: #eaf3fc;
+  font-size: 13px;
+  line-height: 1.45;
+  margin-bottom: 8px;
+}
+
+/* ==========================================
+   ESCRITORIO - SIN BARRA EXTERIOR
+   ========================================== */
+
+@media (min-width: 901px) {
+
+  html:has(.pagina-acceso-caja),
+  body:has(.pagina-acceso-caja),
+  #root:has(.pagina-acceso-caja) {
+    height: 100%;
+    overflow: hidden;
+  }
+
+  .pagina-acceso-caja {
+    height: 100dvh;
+    min-height: 0;
+
+    padding: 12px;
+    overflow: hidden;
+  }
+
+  .pagina-acceso-caja .acceso-tres-paneles {
+    width: min(100%, 1340px);
+    height: min(100%, 620px);
+    min-height: 0;
+
+    grid-template-columns:
+      minmax(0, 1fr)
+      minmax(340px, 460px)
+      minmax(0, 1fr);
+
+    gap: 12px;
+    align-items: stretch;
+  }
+
+  .pagina-acceso-caja .acceso-panel-info,
+  .pagina-acceso-caja .tarjeta-login {
+    height: 100%;
+    min-height: 0;
+    min-width: 0;
+
+    overflow-y: auto;
+    overflow-x: hidden;
+
+    scrollbar-width: none;
+  }
+
+  .pagina-acceso-caja .acceso-panel-info::-webkit-scrollbar,
+  .pagina-acceso-caja .tarjeta-login::-webkit-scrollbar {
+    display: none;
+  }
+
+  .pagina-acceso-caja .tarjeta-login {
+    max-height: none;
+  }
+}
+
+/* ==========================================
+   CELULARES Y PANTALLAS PEQUEÑAS
+   ========================================== */
+
+@media (max-width: 900px) {
+
+  .pagina-acceso-caja {
+    height: auto;
+    min-height: 100dvh;
+    overflow-y: auto;
+  }
+
+  .pagina-acceso-caja .acceso-tres-paneles {
+    grid-template-columns: minmax(0, 1fr);
+
+    max-width: 600px;
+    height: auto;
+  }
+
+  .pagina-acceso-caja .tarjeta-login {
+    order: 0;
+  }
+
+  .pagina-acceso-caja .acceso-panel-info:first-child {
+    order: 1;
+  }
+
+  .pagina-acceso-caja .acceso-panel-info:last-child {
+    order: 2;
+  }
+}
