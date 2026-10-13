@@ -467,7 +467,7 @@ function AppPrivada() {
   }
 
   // ============================================================
-  // PIN
+  // PIN - LoginPin controla su propio diseño (sin tarjeta duplicada)
   // ============================================================
 
   if (
@@ -475,46 +475,12 @@ function AppPrivada() {
     usuarioSeleccionado
   ) {
     return (
-      <main className="pagina-login">
-
-        <section className="tarjeta-login">
-
-          <div className="marca">
-
-            <div className="logo-pos">
-              P
-            </div>
-
-            <div>
-              <h1>
-                POS Init
-              </h1>
-
-              <p>
-                Punto de venta
-              </p>
-            </div>
-
-          </div>
-
-          <LoginPin
-            usuario={
-              usuarioSeleccionado
-            }
-            primerAcceso={
-              true
-            }
-            onRegresar={
-              regresarLogin
-            }
-            onIngresar={
-              ingresarConPin
-            }
-          />
-
-        </section>
-
-      </main>
+      <LoginPin
+        usuario={usuarioSeleccionado}
+        primerAcceso={true}
+        onRegresar={regresarLogin}
+        onIngresar={ingresarConPin}
+      />
     );
   }
 

@@ -3812,3 +3812,398 @@ html { box-sizing: border-box; }
     height: auto !important;
   }
 }
+
+/* ==========================================
+   POS INIT - LOGIN PIN CON TRES PANELES
+   ========================================== */
+
+.pagina-pin-seguro {
+  width: 100%;
+  height: 100dvh;
+  min-height: 0;
+  padding: 14px;
+  box-sizing: border-box;
+  overflow: hidden;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  background: linear-gradient(
+    115deg,
+    #071522,
+    #102a40
+  );
+}
+
+.pin-tres-paneles {
+  display: grid;
+  grid-template-columns:
+    minmax(0, 1fr)
+    minmax(360px, 460px)
+    minmax(0, 1fr);
+
+  gap: 12px;
+
+  width: 100%;
+  max-width: 1400px;
+  height: 100%;
+  min-height: 0;
+}
+
+.pin-tres-paneles > * {
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  box-sizing: border-box;
+}
+
+/* PANELES LATERALES */
+
+.pin-panel-lateral {
+  display: flex;
+  flex-direction: column;
+
+  padding: 24px;
+
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  border-radius: 22px;
+
+  background: linear-gradient(
+    160deg,
+    #173b59,
+    #0d2133
+  );
+
+  color: #ffffff;
+
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.pin-panel-lateral::-webkit-scrollbar {
+  display: none;
+}
+
+.pin-panel-icono {
+  width: 52px;
+  height: 52px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  border-radius: 15px;
+
+  background: rgba(255, 255, 255, 0.11);
+  font-size: 25px;
+
+  margin-bottom: 12px;
+}
+
+.pin-panel-etiqueta {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 1px;
+
+  color: #a9d5ff;
+
+  margin-bottom: 10px;
+}
+
+.pin-panel-lateral h2 {
+  color: #ffffff;
+  font-size: 24px;
+  line-height: 1.2;
+
+  margin: 0 0 12px;
+}
+
+.pin-panel-descripcion {
+  color: #d4e5f3;
+  font-size: 13px;
+  line-height: 1.65;
+
+  margin: 0 0 20px;
+}
+
+.pin-info-bloque {
+  display: flex;
+  gap: 12px;
+
+  padding: 15px;
+  margin-bottom: 12px;
+
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 15px;
+
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.pin-info-icono {
+  flex-shrink: 0;
+
+  width: 36px;
+  height: 36px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.pin-info-bloque h3 {
+  color: #ffffff;
+  font-size: 13px;
+
+  margin: 0 0 6px;
+}
+
+.pin-info-bloque p {
+  color: #e1edf7;
+  font-size: 12px;
+  line-height: 1.6;
+
+  margin: 0;
+}
+
+.pin-ejemplo {
+  display: block;
+
+  margin-top: 8px;
+
+  color: #ffc7c7;
+  font-size: 11px;
+}
+
+.pin-panel-pie {
+  margin-top: auto;
+  padding-top: 18px;
+
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+
+  color: #afc5d8;
+  font-size: 11px;
+}
+
+/* PANEL CENTRAL */
+
+.pagina-pin-seguro .pin-panel-central {
+  width: 100%;
+  max-width: none;
+  height: 100%;
+
+  margin: 0;
+  padding: 26px;
+
+  overflow-y: auto;
+  scrollbar-width: none;
+
+  border-radius: 22px;
+}
+
+.pagina-pin-seguro
+.pin-panel-central::-webkit-scrollbar {
+  display: none;
+}
+
+.pagina-pin-seguro .login-pin {
+  width: 100%;
+  max-width: none;
+  margin: 0;
+}
+
+.pagina-pin-seguro .pin-ayuda {
+  margin: 8px 0 14px;
+
+  font-size: 12px;
+  line-height: 1.5;
+
+  color: #64748b;
+}
+
+/* EVITAR SCROLL EXTERIOR EN ESCRITORIO */
+
+@media (min-width: 1001px) {
+  html:has(.pagina-pin-seguro),
+  body:has(.pagina-pin-seguro),
+  #root:has(.pagina-pin-seguro) {
+    height: 100%;
+    overflow: hidden;
+  }
+}
+
+/* PANTALLAS PEQUEÑAS */
+
+@media (max-width: 1000px) {
+  .pagina-pin-seguro {
+    height: auto;
+    min-height: 100dvh;
+    overflow: visible;
+  }
+
+  .pin-tres-paneles {
+    grid-template-columns: 1fr;
+    max-width: 600px;
+    height: auto;
+  }
+
+  .pin-tres-paneles > * {
+    height: auto;
+  }
+
+  .pagina-pin-seguro .pin-panel-central {
+    min-height: 550px;
+  }
+}
+
+/* ==========================================
+   POS INIT - CORRECCIÓN LOGIN PIN
+   TRES PANELES SIN TARJETAS DUPLICADAS
+   ========================================== */
+
+/* La pantalla de PIN ocupa toda la ventana */
+.pagina-pin-seguro {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 1000;
+
+  width: 100vw !important;
+  height: 100dvh !important;
+  max-width: none !important;
+
+  margin: 0 !important;
+  padding: 14px !important;
+
+  box-sizing: border-box;
+
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+
+  overflow: hidden;
+
+  background: linear-gradient(
+    120deg,
+    #081725,
+    #122c42
+  );
+}
+
+/* Tres columnas: izquierda, centro y derecha */
+.pagina-pin-seguro .pin-tres-paneles {
+  display: grid !important;
+
+  grid-template-columns:
+    minmax(0, 1fr)
+    minmax(360px, 460px)
+    minmax(0, 1fr) !important;
+
+  gap: 12px;
+
+  width: 100%;
+  max-width: 1400px;
+  height: 100%;
+
+  margin: 0 auto;
+}
+
+/* Cada panel ocupa su columna */
+.pagina-pin-seguro .pin-tres-paneles > * {
+  min-width: 0;
+  min-height: 0;
+
+  width: 100%;
+  height: 100%;
+
+  box-sizing: border-box;
+}
+
+/* Tarjeta blanca central */
+.pagina-pin-seguro .pin-panel-central {
+  display: block !important;
+
+  width: 100% !important;
+  max-width: none !important;
+
+  height: 100% !important;
+  margin: 0 !important;
+  padding: 26px !important;
+
+  background: #ffffff !important;
+
+  border-radius: 22px !important;
+
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.pagina-pin-seguro .pin-panel-central::-webkit-scrollbar {
+  display: none;
+}
+
+/* El formulario no crea otra tarjeta */
+.pagina-pin-seguro .login-pin {
+  width: 100%;
+  max-width: none;
+
+  margin: 0;
+  padding: 0;
+
+  background: transparent;
+  border: none;
+  box-shadow: none;
+}
+
+/* Paneles laterales */
+.pagina-pin-seguro .pin-panel-lateral {
+  width: 100%;
+  height: 100%;
+
+  margin: 0;
+
+  border-radius: 22px;
+}
+
+/* Evitar barra exterior */
+html:has(.pagina-pin-seguro),
+body:has(.pagina-pin-seguro),
+#root:has(.pagina-pin-seguro) {
+  overflow: hidden !important;
+}
+
+/* Adaptación a pantallas pequeñas */
+@media (max-width: 1000px) {
+  .pagina-pin-seguro {
+    position: relative !important;
+
+    width: 100% !important;
+    height: auto !important;
+    min-height: 100dvh;
+
+    overflow: visible;
+  }
+
+  .pagina-pin-seguro .pin-tres-paneles {
+    grid-template-columns: 1fr !important;
+
+    max-width: 600px;
+    height: auto;
+  }
+
+  .pagina-pin-seguro .pin-tres-paneles > * {
+    height: auto;
+  }
+
+  .pagina-pin-seguro .pin-panel-central {
+    height: auto !important;
+  }
+
+  html:has(.pagina-pin-seguro),
+  body:has(.pagina-pin-seguro),
+  #root:has(.pagina-pin-seguro) {
+    overflow: auto !important;
+  }
+}
