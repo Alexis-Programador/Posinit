@@ -1,0 +1,355 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // =====================================================
+    // CUENTA PRINCIPAL DE POS INIT
+    // =====================================================
+
+    match /usuarios/{uid} {
+
+      allow create: if request.auth != null
+                    && request.auth.uid == uid;
+
+      allow read: if request.auth != null
+                  && request.auth.uid == uid;
+
+      allow update: if request.auth != null
+                    && request.auth.uid == uid;
+
+      allow delete: if false;
+
+
+      // ===================================================
+      // PRODUCTOS
+      // ===================================================
+
+      match /productos/{productoId} {
+
+        allow read: if request.auth != null
+                    && request.auth.uid == uid;
+
+        allow create: if request.auth != null
+                      && request.auth.uid == uid
+                      && request.resource.data.propietarioUid
+                         == request.auth.uid;
+
+        allow update: if request.auth != null
+                      && request.auth.uid == uid
+                      && resource.data.propietarioUid
+                         == request.auth.uid
+                      && request.resource.data.propietarioUid
+                         == request.auth.uid;
+
+        allow delete: if request.auth != null
+                      && request.auth.uid == uid
+                      && resource.data.propietarioUid
+                         == request.auth.uid;
+      }
+
+
+      // ===================================================
+      // INVENTARIO
+      // ===================================================
+
+      match /inventario/{productoId} {
+
+        allow read: if request.auth != null
+                    && request.auth.uid == uid;
+
+        allow create: if request.auth != null
+                      && request.auth.uid == uid
+                      && request.resource.data.propietarioUid
+                         == request.auth.uid;
+
+        allow update: if request.auth != null
+                      && request.auth.uid == uid
+                      && resource.data.propietarioUid
+                         == request.auth.uid
+                      && request.resource.data.propietarioUid
+                         == request.auth.uid;
+
+        allow delete: if request.auth != null
+                      && request.auth.uid == uid
+                      && resource.data.propietarioUid
+                         == request.auth.uid;
+      }
+
+
+      // ===================================================
+      // PROVEEDORES
+      // ===================================================
+
+      match /proveedores/{proveedorId} {
+
+        allow read: if request.auth != null
+                    && request.auth.uid == uid;
+
+        allow create: if request.auth != null
+                      && request.auth.uid == uid
+                      && request.resource.data.propietarioUid
+                         == request.auth.uid;
+
+        allow update: if request.auth != null
+                      && request.auth.uid == uid
+                      && resource.data.propietarioUid
+                         == request.auth.uid
+                      && request.resource.data.propietarioUid
+                         == request.auth.uid;
+
+        allow delete: if request.auth != null
+                      && request.auth.uid == uid
+                      && resource.data.propietarioUid
+                         == request.auth.uid;
+      }
+
+
+      // ===================================================
+      // REGISTROS DE MERCANCÍA
+      // ===================================================
+
+      match /registrosMercancia/{registroId} {
+
+        allow read: if request.auth != null
+                    && request.auth.uid == uid;
+
+        allow create: if request.auth != null
+                      && request.auth.uid == uid
+                      && request.resource.data.propietarioUid
+                         == request.auth.uid;
+
+        allow update: if request.auth != null
+                      && request.auth.uid == uid
+                      && resource.data.propietarioUid
+                         == request.auth.uid
+                      && request.resource.data.propietarioUid
+                         == request.auth.uid;
+
+        allow delete: if request.auth != null
+                      && request.auth.uid == uid
+                      && resource.data.propietarioUid
+                         == request.auth.uid;
+      }
+
+
+      // ===================================================
+      // USUARIOS / CAJEROS
+      // ===================================================
+
+      match /usuariosSistema/{usuarioId} {
+
+        allow read: if request.auth != null
+                    && request.auth.uid == uid;
+
+        allow create: if request.auth != null
+                      && request.auth.uid == uid
+                      && request.resource.data.propietarioUid
+                         == request.auth.uid;
+
+        allow update: if request.auth != null
+                      && request.auth.uid == uid
+                      && resource.data.propietarioUid
+                         == request.auth.uid
+                      && request.resource.data.propietarioUid
+                         == request.auth.uid;
+
+        allow delete: if request.auth != null
+                      && request.auth.uid == uid
+                      && resource.data.propietarioUid
+                         == request.auth.uid;
+      }
+
+
+      // ===================================================
+      // VENTAS
+      // ===================================================
+
+      match /ventas/{ventaId} {
+
+        allow read: if request.auth != null
+                    && request.auth.uid == uid;
+
+        allow create: if request.auth != null
+                      && request.auth.uid == uid
+                      && request.resource.data.propietarioUid
+                         == request.auth.uid;
+
+        allow update: if false;
+
+        allow delete: if false;
+      }
+
+
+      // ===================================================
+      // CORTES DE CAJA
+      // ===================================================
+
+      match /cortesCaja/{corteId} {
+
+        allow read: if request.auth != null
+                    && request.auth.uid == uid;
+
+        allow create: if request.auth != null
+                      && request.auth.uid == uid
+                      && request.resource.data.propietarioUid
+                         == request.auth.uid;
+
+        allow update: if request.auth != null
+                      && request.auth.uid == uid
+                      && resource.data.propietarioUid
+                         == request.auth.uid
+                      && request.resource.data.propietarioUid
+                         == request.auth.uid;
+
+        allow delete: if request.auth != null
+                      && request.auth.uid == uid
+                      && resource.data.propietarioUid
+                         == request.auth.uid;
+      }
+
+
+      // ===================================================
+      // RETIROS DE CAJA
+      // ===================================================
+
+      match /retirosCaja/{retiroId} {
+
+        allow read: if request.auth != null
+                    && request.auth.uid == uid;
+
+        allow create: if request.auth != null
+                      && request.auth.uid == uid
+                      && request.resource.data.propietarioUid
+                         == request.auth.uid;
+
+        allow update: if request.auth != null
+                      && request.auth.uid == uid
+                      && resource.data.propietarioUid
+                         == request.auth.uid
+                      && request.resource.data.propietarioUid
+                         == request.auth.uid;
+
+        allow delete: if request.auth != null
+                      && request.auth.uid == uid
+                      && resource.data.propietarioUid
+                         == request.auth.uid;
+      }
+
+
+      // ===================================================
+      // CONFIGURACIÓN / AJUSTES
+      // ===================================================
+
+      match /configuracion/{configId} {
+
+        allow read: if request.auth != null
+                    && request.auth.uid == uid;
+
+        allow create: if request.auth != null
+                      && request.auth.uid == uid
+                      && request.resource.data.propietarioUid
+                         == request.auth.uid;
+
+        allow update: if request.auth != null
+                      && request.auth.uid == uid
+                      && resource.data.propietarioUid
+                         == request.auth.uid
+                      && request.resource.data.propietarioUid
+                         == request.auth.uid;
+
+        allow delete: if request.auth != null
+              && request.auth.uid == uid
+              && resource.data.propietarioUid == request.auth.uid;
+      }
+    }
+
+
+    // =====================================================
+    // PIN BÁSICO DE CAJEROS - FIREBASE SPARK
+    // =====================================================
+    //
+    // Ruta:
+    // posPinBasico/{ownerUid}/cajeros/{usuarioId}
+    //
+    // IMPORTANTE:
+    // El navegador puede leer los hashes y actualizar
+    // intentos si utiliza la sesión del propietario.
+    //
+    // Es un control de acceso básico, NO una barrera
+    // de seguridad resistente a manipulaciones.
+    //
+    // =====================================================
+
+    match /posPinBasico/{ownerUid}/cajeros/{usuarioId} {
+
+      function esPropietario() {
+        return request.auth != null
+               && request.auth.uid == ownerUid;
+      }
+
+      function cajeroExisteYActivo() {
+        return exists(
+          /databases/$(database)/documents/usuarios/$(ownerUid)/usuariosSistema/$(usuarioId)
+        )
+        && get(
+          /databases/$(database)/documents/usuarios/$(ownerUid)/usuariosSistema/$(usuarioId)
+        ).data.activo != false;
+      }
+
+      allow read: if esPropietario();
+
+      allow create: if esPropietario()
+                    && cajeroExisteYActivo()
+                    && request.resource.data.keys().hasOnly([
+                      "sal",
+                      "hash",
+                      "creadoEn",
+                      "intentosFallidos",
+                      "bloqueado",
+                      "historial"
+                    ])
+                    && request.resource.data.sal is string
+                    && request.resource.data.hash is string
+                    && request.resource.data.creadoEn is number
+                    && request.resource.data.intentosFallidos == 0
+                    && request.resource.data.bloqueado == false
+                    && request.resource.data.historial is list
+                    && request.resource.data.historial.size() == 1
+                    && request.resource.data.historial[0]
+                       == request.resource.data.hash;
+
+      allow update: if esPropietario()
+                    && cajeroExisteYActivo()
+                    && request.resource.data.diff(resource.data)
+                       .affectedKeys().hasOnly([
+                         "intentosFallidos",
+                         "bloqueado"
+                       ])
+                    && request.resource.data.intentosFallidos is int
+                    && request.resource.data.intentosFallidos >= 0
+                    && request.resource.data.intentosFallidos <= 4
+                    && request.resource.data.bloqueado is bool;
+
+      allow delete: if false;
+    }
+
+
+    // =====================================================
+    // PIN DE SEGURIDAD RESERVADO PARA SERVIDOR
+    // =====================================================
+
+    match /posPinSeguridad/{ownerUid}/cajeros/{usuarioId} {
+      allow read, write: if false;
+    }
+
+
+    // =====================================================
+    // TODO LO DEMÁS BLOQUEADO
+    // =====================================================
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

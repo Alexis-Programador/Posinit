@@ -4207,3 +4207,322 @@ body:has(.pagina-pin-seguro),
     overflow: auto !important;
   }
 }
+
+/* ============================================================
+   POS INIT - LOGIN PIN FIJO
+   TRES PANELES SIN SCROLL
+   ============================================================ */
+
+/* Evitar desplazamiento de toda la página */
+html:has(.pagina-pin-seguro),
+body:has(.pagina-pin-seguro),
+#root:has(.pagina-pin-seguro) {
+  width: 100% !important;
+  height: 100% !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+}
+
+/* Pantalla completa */
+.pagina-pin-seguro {
+  position: fixed !important;
+  inset: 0 !important;
+
+  width: 100vw !important;
+  height: 100dvh !important;
+
+  padding: 12px !important;
+  margin: 0 !important;
+
+  box-sizing: border-box !important;
+  overflow: hidden !important;
+
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+
+  background: linear-gradient(
+    120deg,
+    #081725,
+    #122c42
+  );
+}
+
+/* Tres columnas */
+.pagina-pin-seguro .pin-tres-paneles {
+  display: grid !important;
+
+  grid-template-columns:
+    minmax(0, 1fr)
+    minmax(350px, 460px)
+    minmax(0, 1fr) !important;
+
+  gap: 12px !important;
+
+  width: 100% !important;
+  max-width: 1400px !important;
+
+  height: 100% !important;
+  min-height: 0 !important;
+
+  margin: 0 auto !important;
+  padding: 0 !important;
+
+  align-items: stretch !important;
+}
+
+/* Todos los paneles iguales en altura */
+.pagina-pin-seguro .pin-tres-paneles > * {
+  width: 100% !important;
+  height: 100% !important;
+
+  min-width: 0 !important;
+  min-height: 0 !important;
+
+  margin: 0 !important;
+  box-sizing: border-box !important;
+}
+
+/* Paneles laterales */
+.pagina-pin-seguro .pin-panel-lateral {
+  display: flex !important;
+  flex-direction: column !important;
+
+  padding: 18px !important;
+
+  overflow: hidden !important;
+
+  border-radius: 20px !important;
+}
+
+/* Reducir espacios laterales */
+.pagina-pin-seguro .pin-panel-icono {
+  width: 42px !important;
+  height: 42px !important;
+
+  margin-bottom: 8px !important;
+
+  font-size: 21px !important;
+}
+
+.pagina-pin-seguro .pin-panel-etiqueta {
+  font-size: 10px !important;
+  margin-bottom: 6px !important;
+}
+
+.pagina-pin-seguro .pin-panel-lateral h2 {
+  font-size: 21px !important;
+  margin-bottom: 8px !important;
+}
+
+.pagina-pin-seguro .pin-panel-descripcion {
+  font-size: 12px !important;
+  line-height: 1.4 !important;
+
+  margin-bottom: 12px !important;
+}
+
+.pagina-pin-seguro .pin-info-bloque {
+  padding: 11px !important;
+  gap: 9px !important;
+
+  margin-bottom: 9px !important;
+}
+
+.pagina-pin-seguro .pin-info-bloque h3 {
+  font-size: 12px !important;
+  margin-bottom: 4px !important;
+}
+
+.pagina-pin-seguro .pin-info-bloque p {
+  font-size: 11px !important;
+  line-height: 1.4 !important;
+}
+
+.pagina-pin-seguro .pin-ejemplo {
+  font-size: 10px !important;
+  margin-top: 5px !important;
+}
+
+.pagina-pin-seguro .pin-panel-pie {
+  padding-top: 10px !important;
+  font-size: 10px !important;
+}
+
+/* ============================================================
+   PANEL CENTRAL
+   ============================================================ */
+
+.pagina-pin-seguro .pin-panel-central {
+  display: flex !important;
+  flex-direction: column !important;
+
+  padding: 18px 24px !important;
+
+  overflow: hidden !important;
+
+  background: #ffffff !important;
+  border-radius: 20px !important;
+}
+
+/* Logo */
+.pagina-pin-seguro .pin-panel-central > .marca {
+  margin-bottom: 8px !important;
+}
+
+.pagina-pin-seguro .pin-panel-central .logo-pos {
+  width: 48px !important;
+  height: 48px !important;
+}
+
+/* Formulario */
+.pagina-pin-seguro .login-pin {
+  display: flex !important;
+  flex-direction: column !important;
+
+  width: 100% !important;
+  min-height: 0 !important;
+
+  margin: 0 !important;
+  padding: 0 !important;
+
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+/* Botón regresar */
+.pagina-pin-seguro .boton-regresar {
+  align-self: flex-start !important;
+
+  width: auto !important;
+  min-height: 36px !important;
+
+  margin: 5px 0 12px !important;
+  padding: 7px 13px !important;
+
+  font-size: 12px !important;
+}
+
+/* Usuario */
+.pagina-pin-seguro .usuario-login {
+  margin: 0 0 12px !important;
+  padding: 0 !important;
+}
+
+.pagina-pin-seguro .avatar-login {
+  width: 65px !important;
+  height: 65px !important;
+
+  margin: 0 auto 7px !important;
+
+  font-size: 29px !important;
+}
+
+.pagina-pin-seguro .usuario-login h2 {
+  font-size: 21px !important;
+  margin: 0 0 3px !important;
+}
+
+.pagina-pin-seguro .usuario-login p {
+  font-size: 12px !important;
+  margin: 0 !important;
+}
+
+/* Encabezado */
+.pagina-pin-seguro .encabezado-pin {
+  margin: 0 0 12px !important;
+}
+
+.pagina-pin-seguro .encabezado-pin h3 {
+  font-size: 20px !important;
+  margin: 0 0 5px !important;
+}
+
+.pagina-pin-seguro .encabezado-pin p {
+  font-size: 12px !important;
+  margin: 0 !important;
+}
+
+/* Campo PIN */
+.pagina-pin-seguro .input-pin {
+  height: 48px !important;
+  min-height: 48px !important;
+
+  margin: 5px 0 !important;
+  padding: 8px !important;
+
+  box-sizing: border-box !important;
+}
+
+.pagina-pin-seguro .contador-pin {
+  margin: 0 0 6px !important;
+  font-size: 11px !important;
+}
+
+.pagina-pin-seguro .pin-ayuda {
+  margin: 5px 0 9px !important;
+  font-size: 11px !important;
+}
+
+/* Botón continuar */
+.pagina-pin-seguro .login-pin form button[type="submit"] {
+  width: 100% !important;
+
+  min-height: 44px !important;
+  height: 44px !important;
+
+  margin-top: 8px !important;
+  padding: 8px !important;
+
+  font-size: 13px !important;
+}
+
+/* Pie de tarjeta */
+.pagina-pin-seguro .pie-login {
+  margin-top: 12px !important;
+  padding-top: 10px !important;
+
+  font-size: 10px !important;
+}
+
+/* ============================================================
+   PANTALLAS CON POCA ALTURA
+   ============================================================ */
+
+@media (max-height: 700px) and (min-width: 1001px) {
+  .pagina-pin-seguro {
+    padding: 8px !important;
+  }
+
+  .pagina-pin-seguro .pin-panel-lateral {
+    padding: 12px !important;
+  }
+
+  .pagina-pin-seguro .pin-panel-central {
+    padding: 12px 20px !important;
+  }
+
+  .pagina-pin-seguro .avatar-login {
+    width: 52px !important;
+    height: 52px !important;
+    font-size: 23px !important;
+  }
+
+  .pagina-pin-seguro .usuario-login {
+    margin-bottom: 7px !important;
+  }
+
+  .pagina-pin-seguro .encabezado-pin {
+    margin-bottom: 7px !important;
+  }
+
+  .pagina-pin-seguro .boton-regresar {
+    margin-bottom: 7px !important;
+  }
+
+  .pagina-pin-seguro .pin-info-bloque {
+    padding: 8px !important;
+    margin-bottom: 7px !important;
+  }
+}
