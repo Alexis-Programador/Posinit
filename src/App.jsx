@@ -19,6 +19,11 @@ import ActivarCaja from "./components/ActivarCaja";
 import LoginPin from "./components/LoginPin";
 import TicketPublico from "./components/TicketPublico";
 import PagoPublico from "./components/PagoPublico";
+import {
+  consultarEstadoPin,
+  crearPinCajero,
+  verificarPinCajero,
+} from "./firebase/posPinBasico";
 
 function AppPrivada() {
 
@@ -60,6 +65,8 @@ function AppPrivada() {
 
   const [sesionCaja, setSesionCaja] =
     useState(false);
+
+  const [estadoPin, setEstadoPin] = useState(null);
 
   // ============================================================
   // COMPROBAR SESIÓN DEL ADMINISTRADOR
@@ -253,10 +260,14 @@ function AppPrivada() {
         return;
       }
 
+      // El PIN se guarda bajo el ID REAL del documento usuariosSistema.
+      // No usar numeroUsuario ni un campo "id" potencialmente distinto.
+      const idCajero = documento.id;
+      const estado = await consultarEstadoPin(ownerUid, idCajero);
+
+      setEstadoPin(estado);
       setUsuarioSeleccionado({
-        id:
-          datosUsuario.id ??
-          documento.id,
+        id: idCajero,
 
         nombre:
           datosUsuario.nombre ||
@@ -295,6 +306,7 @@ function AppPrivada() {
     setPantalla("login");
 
     setUsuarioSeleccionado(null);
+    setEstadoPin(null);
 
     setSesionCaja(false);
 
@@ -334,40 +346,29 @@ function AppPrivada() {
   // PIN
   // ============================================================
 
-  const ingresarConPin = (
-    pin,
-    esNuevoPin
-  ) => {
-    /*
-      Por ahora el PIN solamente controla
-      el flujo visual.
+  const ingresarConPin = async (pin, esNuevoPin) => {
+    if (!ownerUid || !usuarioSeleccionado?.id) {
+      throw new Error("No se pudo identificar al cajero.");
+    }
 
-      Todavía NO se guarda el PIN en Firestore.
-
-      La validación segura se conectará
-      posteriormente mediante backend.
-    */
-
-    console.log(
-      "Acceso a caja:",
-      {
-        businessId:
-          usuarioSeleccionado?.businessId,
-
-        usuarioId:
-          usuarioSeleccionado?.id,
-
-        numeroUsuario:
-          usuarioSeleccionado?.numeroUsuario,
-
-        esNuevoPin,
-
-        longitudPin:
-          pin.length,
+    const usuarioId = usuarioSeleccionado.id;
+    if (esNuevoPin) {
+      // Revalidar para impedir sobrescribir un PIN ya existente.
+      const estadoActual = await consultarEstadoPin(ownerUid, usuarioId);
+      if (estadoActual.tienePin) {
+        setEstadoPin(estadoActual);
+        throw new Error("Este cajero ya tiene un PIN. Regresa e ingresa nuevamente.");
       }
-    );
+      await crearPinCajero({ ownerUid, usuarioId, pin });
+    } else {
+      const resultado = await verificarPinCajero({ ownerUid, usuarioId, pin });
+      if (!resultado.autorizado) {
+        throw new Error(resultado.mensaje || "PIN incorrecto.");
+      }
+    }
 
     setSesionCaja(true);
+    return true;
   };
 
   // ============================================================
@@ -380,6 +381,7 @@ function AppPrivada() {
     setPantalla("login");
 
     setUsuarioSeleccionado(null);
+    setEstadoPin(null);
 
     setNumeroUsuario("");
 
@@ -473,12 +475,14 @@ function AppPrivada() {
 
   if (
     pantalla === "pin" &&
-    usuarioSeleccionado
+    usuarioSeleccionado &&
+    estadoPin
   ) {
     return (
       <LoginPin
         usuario={usuarioSeleccionado}
-        primerAcceso={true}
+        key={`${ownerUid}:${usuarioSeleccionado.id}:${estadoPin?.tienePin ? "existente" : "nuevo"}`}
+        primerAcceso={estadoPin?.tienePin === false}
         onRegresar={regresarLogin}
         onIngresar={ingresarConPin}
       />
