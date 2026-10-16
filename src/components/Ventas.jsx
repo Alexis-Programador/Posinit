@@ -163,105 +163,59 @@ function Ventas({
   // =========================================================
 
   useEffect(() => {
-    const cargarDatos =
-      async () => {
-        if (!ownerUid) {
-          setError(
-            "No se encontró el negocio."
-          );
+    if (!ownerUid) {
+      setError("No se encontró el negocio.");
+      setCargando(false);
+      return undefined;
+    }
 
-          setCargando(false);
-          return;
-        }
+    setCargando(true);
+    setError("");
+    let productosListos = false;
+    let inventarioListo = false;
+    const terminarCarga = () => {
+      if (productosListos && inventarioListo) setCargando(false);
+    };
 
-        try {
-          setCargando(true);
-          setError("");
+    const cancelarProductos = onSnapshot(
+      collection(db, "usuarios", ownerUid, "productos"),
+      (snapshot) => {
+        setProductos(snapshot.docs.map((d) => ({ documentoId: d.id, ...d.data() })));
+        productosListos = true;
+        terminarCarga();
+      },
+      (err) => {
+        console.error("Error escuchando productos:", err);
+        setError("No se pudieron actualizar los productos.");
+        productosListos = true;
+        terminarCarga();
+      }
+    );
 
-          const referenciaProductos =
-            collection(
-              db,
-              "usuarios",
-              ownerUid,
-              "productos"
-            );
+    const cancelarInventario = onSnapshot(
+      collection(db, "usuarios", ownerUid, "inventario"),
+      (snapshot) => {
+        const mapa = {};
+        snapshot.docs.forEach((d) => {
+          const datos = d.data();
+          mapa[String(datos.productoId ?? d.id)] = { ...datos };
+        });
+        setInventario(mapa);
+        inventarioListo = true;
+        terminarCarga();
+      },
+      (err) => {
+        console.error("Error escuchando inventario:", err);
+        setError("No se pudo actualizar el inventario.");
+        inventarioListo = true;
+        terminarCarga();
+      }
+    );
 
-          const referenciaInventario =
-            collection(
-              db,
-              "usuarios",
-              ownerUid,
-              "inventario"
-            );
-
-          const [
-            resultadoProductos,
-            resultadoInventario,
-          ] =
-            await Promise.all([
-              getDocs(
-                referenciaProductos
-              ),
-
-              getDocs(
-                referenciaInventario
-              ),
-            ]);
-
-          const listaProductos =
-            resultadoProductos.docs.map(
-              (documento) => ({
-                documentoId:
-                  documento.id,
-
-                ...documento.data(),
-              })
-            );
-
-          const mapaInventario =
-            {};
-
-          resultadoInventario.docs.forEach(
-            (documento) => {
-              const datos =
-                documento.data();
-
-              const productoId =
-                datos.productoId ??
-                documento.id;
-
-              mapaInventario[
-                String(
-                  productoId
-                )
-              ] = {
-                ...datos,
-              };
-            }
-          );
-
-          setProductos(
-            listaProductos
-          );
-
-          setInventario(
-            mapaInventario
-          );
-        } catch (err) {
-          console.error(
-            "Error cargando ventas:",
-            err
-          );
-
-          setError(
-            "No se pudieron cargar los productos."
-          );
-        } finally {
-          setCargando(false);
-        }
-      };
-
-    cargarDatos();
+    return () => {
+      cancelarProductos();
+      cancelarInventario();
+    };
   }, [ownerUid]);
 
   // =========================================================
@@ -950,198 +904,95 @@ Imprimir ticket
   // MENÚ F1-F6
   // =========================================================
 
+  const [mostrarConfirmacionSalida, setMostrarConfirmacionSalida] = useState(false);
+  const [cerrandoSesion, setCerrandoSesion] = useState(false);
+
+  const solicitarCerrarSesion = () => {
+    setMostrarMenu(false);
+    setMostrarConfirmacionSalida(true);
+  };
+
+  const confirmarCerrarSesion = async () => {
+    if (cerrandoSesion) return;
+    setCerrandoSesion(true);
+    try {
+      // Guardar aviso auditable sin modificar ni liquidar el saldo de caja.
+      const registroRef = doc(collection(db, "usuarios", ownerUid, "cierresSesionCaja"));
+      await setDoc(registroRef, {
+        id: registroRef.id,
+        propietarioUid: ownerUid,
+        usuarioId: usuario?.id ?? null,
+        numeroUsuario: usuario?.numeroUsuario ?? "",
+        nombreUsuario: usuario?.nombre ?? "Usuario",
+        efectivoRegistrado: Number(efectivoEnCaja.toFixed(2)),
+        pendienteCorte: efectivoEnCaja > 0,
+        fechaHora: Date.now(),
+        fechaServidor: serverTimestamp(),
+        origen: "web",
+        estado: efectivoEnCaja > 0 ? "pendiente_revision" : "sin_efectivo_registrado",
+      });
+      setMostrarConfirmacionSalida(false);
+      onCerrarCaja?.(ultimoCorteRealizado);
+    } catch (err) {
+      console.error("No se pudo registrar el cierre de sesión:", err);
+      setError("No se pudo registrar el cierre. Comprueba permisos de Firestore.");
+    } finally {
+      setCerrandoSesion(false);
+    }
+  };
+
   useEffect(() => {
-    const manejarTecla = (
-      event
-    ) => {
-      if (
-        ![
-          "F1",
-          "F2",
-          "F3",
-          "F4",
-          "F5",
-          "F6",
-        ].includes(
-          event.key
-        )
-      ) {
-        return;
-      }
-
-      event.preventDefault();
-
-      if (
-        ticketVentaActual ||
-        mostrarConfirmarRetiro
-      ) {
-        return;
-      }
-
-      if (
-        mostrarCerrarSesionCorte
-      ) {
-        return;
-      }
-
-      if (
-        mostrarHistorial
-      ) {
-        if (
-          event.key ===
-          "F1"
-        ) {
-          setMostrarHistorial(
-            false
-          );
+    const manejarTecla = (event) => {
+      if (!["F1", "F2", "F3", "F4", "F5", "F9", "F10"].includes(event.key)) return;
+      if (event.key !== "F1") event.preventDefault();
+      if (mostrarConfirmacionSalida || ticketVentaActual || mostrarConfirmarRetiro ||
+          mostrarCerrarSesionCorte || mostrarCobro) return;
+      if (mostrarHistorial || mostrarCorte) {
+        if (event.key === "F1") {
+          event.preventDefault();
+          setMostrarHistorial(false);
+          setMostrarCorte(false);
         }
-
         return;
       }
-
-      if (
-        mostrarCorte
-      ) {
-        if (
-          event.key ===
-          "F1"
-        ) {
-          setMostrarCorte(
-            false
-          );
-        }
-
+      if (event.key === "F10") {
+        solicitarCerrarSesion();
         return;
       }
-
-      if (
-        mostrarCobro
-      ) {
+      if (event.key === "F9") {
+        // Pendiente de integrar con el verificador PIN del proyecto.
+        setError("F9 requiere conectar el verificador del PIN del cajero.");
         return;
       }
-
-      if (
-        !mostrarMenu
-      ) {
-        if (
-          event.key ===
-          "F1"
-        ) {
-          setMostrarMenu(
-            true
-          );
-
-          setError("");
-          setMensajeVenta("");
-        }
-
+      if (event.key === "F1") {
+        event.preventDefault();
+        setMostrarMenu((abierto) => !abierto);
         return;
       }
-
-      if (
-        event.key ===
-        "F1"
-      ) {
+      if (!mostrarMenu) return;
+      if (event.key === "F2") {
         if (efectivoEnCaja <= 0) {
-          setError(
-            "No hay efectivo disponible para realizar un retiro."
-          );
+          setError("No hay efectivo disponible para realizar un retiro.");
           return;
         }
-
         setMostrarMenu(false);
         setMontoRetiro("3000");
-                  setMostrarConfirmarRetiro(true);
-        setError("");
-        setMensajeVenta("");
-      } else if (
-        event.key ===
-        "F2"
-      ) {
-        setMostrarMenu(
-          false
-        );
-
-        setMostrarCorte(
-          true
-        );
-
-        setError("");
-        setMensajeVenta("");
-      } else if (
-        event.key ===
-        "F3"
-      ) {
+        setMostrarConfirmarRetiro(true);
+      } else if (event.key === "F3") {
+        setMostrarMenu(false);
+        setMostrarCorte(true);
+      } else if (event.key === "F4") {
         imprimirTicketAnterior();
-      } else if (
-        event.key ===
-        "F4"
-      ) {
-        setMostrarMenu(
-          false
-        );
-
-        setMostrarHistorial(
-          true
-        );
-
-        setError("");
-        setMensajeVenta("");
-      } else if (
-        event.key ===
-        "F5"
-      ) {
-        setMostrarMenu(
-          false
-        );
-      } else if (
-        event.key ===
-        "F6"
-      ) {
-        if (
-          !cierreSesionHabilitado
-        ) {
-          setError(
-            "Primero debes realizar el corte de caja antes de cerrar sesión."
-          );
-
-          return;
-        }
-
-        setMostrarMenu(
-          false
-        );
-
-        onCerrarCaja?.(
-          ultimoCorteRealizado
-        );
+      } else if (event.key === "F5") {
+        setMostrarMenu(false);
+        setMostrarHistorial(true);
       }
     };
-
-    window.addEventListener(
-      "keydown",
-      manejarTecla
-    );
-
-    return () =>
-      window.removeEventListener(
-        "keydown",
-        manejarTecla
-      );
-  }, [
-    mostrarMenu,
-    mostrarHistorial,
-    mostrarCorte,
-    mostrarCobro,
-    mostrarCerrarSesionCorte,
-    efectivoEnCaja,
-    procesandoRetiro,
-    cierreSesionHabilitado,
-    ultimoCorteRealizado,
-    onCerrarCaja,
-    ticketVentaActual,
-    mostrarConfirmarRetiro,
-  ]);
+    window.addEventListener("keydown", manejarTecla);
+    return () => window.removeEventListener("keydown", manejarTecla);
+  }, [mostrarMenu, mostrarHistorial, mostrarCorte, mostrarCobro,
+      mostrarCerrarSesionCorte, mostrarConfirmarRetiro, mostrarConfirmacionSalida,
+      ticketVentaActual, efectivoEnCaja, ultimoCorteRealizado, onCerrarCaja]);
 
   // =========================================================
   // CONFIRMACIÓN CIERRE DESPUÉS DEL CORTE
@@ -1219,54 +1070,22 @@ Imprimir ticket
   // PRODUCTOS FILTRADOS
   // =========================================================
 
-  const productosFiltrados =
-    useMemo(() => {
-      const texto =
-        busqueda
-          .trim()
-          .toLowerCase();
-
-      if (!texto) {
-        return productos;
-      }
-
-      return productos.filter(
-        (producto) => {
-          const nombre =
-            String(
-              producto.nombre ||
-                ""
-            ).toLowerCase();
-
-          const codigo =
-            String(
-              producto.codigoBarras ||
-                ""
-            ).toLowerCase();
-
-          const categoria =
-            String(
-              producto.categoria ||
-                ""
-            ).toLowerCase();
-
-          return (
-            nombre.includes(
-              texto
-            ) ||
-            codigo.includes(
-              texto
-            ) ||
-            categoria.includes(
-              texto
-            )
-          );
-        }
+  // Orden alfabético estable, incluyendo nombres con acentos.
+  const productosFiltrados = useMemo(() => {
+    const texto = busqueda.trim().toLocaleLowerCase("es-MX");
+    return productos
+      .filter((producto) => {
+        if (!texto) return true;
+        return [producto.nombre, producto.codigoBarras, producto.categoria]
+          .some((valor) => String(valor ?? "").toLocaleLowerCase("es-MX").includes(texto));
+      })
+      .sort((a, b) =>
+        String(a.nombre ?? "").localeCompare(String(b.nombre ?? ""), "es-MX", {
+          sensitivity: "base",
+          numeric: true,
+        })
       );
-    }, [
-      productos,
-      busqueda,
-    ]);
+  }, [productos, busqueda]);
 
   // =========================================================
   // STOCK
@@ -1334,6 +1153,29 @@ Imprimir ticket
           elemento?.tagName === "SELECT" ||
           elemento?.isContentEditable);
 
+      // Alt + letra: saltar al primer producto de esa inicial.
+      // Solo funciona si el navegador entrega el atajo a la página.
+      if (event.altKey && !event.ctrlKey && !event.metaKey &&
+          /^[a-z]$/i.test(event.key) && !escribiendoEnOtroCampo) {
+        event.preventDefault();
+        const letra = event.key.toLocaleLowerCase("es-MX");
+        const normalizar = (valor) => String(valor ?? "")
+          .normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "")
+          .toLocaleLowerCase("es-MX");
+        const indice = productosFiltrados.findIndex((producto) =>
+          normalizar(producto.nombre).startsWith(letra)
+        );
+        if (indice >= 0) {
+          setProductoSeleccionado(indice);
+          requestAnimationFrame(() => {
+            document.querySelector(`[data-producto-indice="${indice}"]`)
+              ?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+          });
+        }
+        return;
+      }
+
       // + = abrir buscador
       if (
         event.key === "+"
@@ -1390,8 +1232,10 @@ Imprimir ticket
       let nuevoIndice =
         productoSeleccionado;
 
-      const columnasAproximadas =
-        3;
+      const rejilla = document.querySelector(".productos-grid");
+      const columnasAproximadas = rejilla
+        ? getComputedStyle(rejilla).gridTemplateColumns.split(" ").filter(Boolean).length
+        : 5;
 
       if (
         event.key ===
@@ -1776,6 +1620,20 @@ Imprimir ticket
     );
   };
 
+  // Shift sola abre cobro; no interfiere con escritura de texto.
+  useEffect(() => {
+    const manejarShift = (event) => {
+      if (event.key !== "Shift" || event.repeat || carrito.length === 0 ||
+          mostrarCobro || mostrarMenu || mostrarCorte || mostrarHistorial || ticketVentaActual) return;
+      const el = document.activeElement;
+      if (["INPUT", "TEXTAREA", "SELECT"].includes(el?.tagName) || el?.isContentEditable) return;
+      event.preventDefault();
+      cobrar();
+    };
+    window.addEventListener("keyup", manejarShift);
+    return () => window.removeEventListener("keyup", manejarShift);
+  }, [carrito, mostrarCobro, mostrarMenu, mostrarCorte, mostrarHistorial, ticketVentaActual]);
+
   // =========================================================
   // CONFIRMAR VENTA
   // =========================================================
@@ -1785,6 +1643,7 @@ Imprimir ticket
       metodoPago,
       recibido,
       cambio,
+      pagoDigitalId,
     }) => {
       if (
         procesandoVenta ||
@@ -1891,6 +1750,28 @@ Imprimir ticket
                     item.cantidad,
                 }
               );
+            }
+
+            if (metodoPago === "transferencia") {
+              if (!pagoDigitalId) throw new Error("Falta el identificador del pago digital.");
+              const pagoRef = doc(db, "pagosPosInit", pagoDigitalId);
+              const pagoSnap = await transaction.get(pagoRef);
+              if (!pagoSnap.exists() || pagoSnap.data().ownerUid !== ownerUid ||
+                  pagoSnap.data().estado !== "pendiente" ||
+                  Math.abs(Number(pagoSnap.data().total) - totalFinal) > 0.001) {
+                throw new Error("La solicitud de pago ya no es válida.");
+              }
+              // Este estado solo se escribe después de verificar el depósito manualmente.
+              transaction.update(pagoRef, {
+                estado: "confirmado", ventaId: ventaRef.id,
+                fechaConfirmacion: serverTimestamp(),
+                ticket: {
+                  folio: ventaRef.id, total: totalFinal, metodoPago: "transferencia",
+                  productos: carritoVenta.map(item => ({ nombre: item.nombre,
+                    cantidad: item.cantidad, precio: item.precio,
+                    subtotal: Number((item.precio * item.cantidad).toFixed(2)) })),
+                },
+              });
             }
 
             inventarios.forEach(
@@ -2005,50 +1886,7 @@ Imprimir ticket
           }
         );
 
-        setInventario(
-          (
-            inventarioActual
-          ) => {
-            const copia = {
-              ...inventarioActual,
-            };
-
-            carritoVenta.forEach(
-              (item) => {
-                const clave =
-                  String(
-                    item.id
-                  );
-
-                if (
-                  copia[
-                    clave
-                  ]
-                ) {
-                  copia[
-                    clave
-                  ] = {
-                    ...copia[
-                      clave
-                    ],
-
-                    stockActual:
-                      Number(
-                        copia[
-                          clave
-                        ]
-                          .stockActual ??
-                          0
-                      ) -
-                      item.cantidad,
-                  };
-                }
-              }
-            );
-
-            return copia;
-          }
-        );
+        // onSnapshot actualiza el stock tras confirmar la transacción.
 
         const fechaVentaFinal =
           Date.now();
@@ -2621,6 +2459,111 @@ window.onload = function () {
 
   return (
     <main className="ventas-pagina">
+
+      <style>{`
+        /* Catálogo adaptable: cinco columnas cuando hay espacio */
+        .ventas-pagina .catalogo {
+          min-width: 0;
+          container-type: inline-size;
+        }
+        .ventas-pagina .productos-grid {
+          display: grid !important;
+          grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+          grid-auto-rows: 205px !important;
+          gap: 12px !important;
+          padding: 8px 12px 20px !important;
+          overflow-y: auto !important;
+          align-content: start !important;
+          box-sizing: border-box !important;
+        }
+        .ventas-pagina .producto-card {
+          display: flex !important;
+          flex-direction: column !important;
+          width: 100% !important;
+          height: 205px !important;
+          min-width: 0 !important;
+          min-height: 0 !important;
+          padding: 0 !important;
+          overflow: hidden !important;
+          border-radius: 14px !important;
+          box-sizing: border-box !important;
+          text-align: left !important;
+        }
+        .ventas-pagina .producto-imagen {
+          display: flex !important;
+          align-items: center !important;
+          justify-content: center !important;
+          flex: 1 1 auto !important;
+          width: 100% !important;
+          min-height: 0 !important;
+          padding: 8px !important;
+          overflow: hidden !important;
+          box-sizing: border-box !important;
+        }
+        .ventas-pagina .producto-imagen img {
+          display: block !important;
+          width: 100% !important;
+          height: 100% !important;
+          max-width: 100% !important;
+          max-height: 100% !important;
+          object-fit: contain !important;
+          object-position: center !important;
+        }
+        .ventas-pagina .producto-sin-imagen {
+          display: flex !important;
+          align-items: center !important;
+          justify-content: center !important;
+          width: 100% !important;
+          height: 100% !important;
+          font-size: 34px !important;
+        }
+        .ventas-pagina .producto-info {
+          display: flex !important;
+          flex-direction: column !important;
+          flex: 0 0 auto !important;
+          gap: 3px !important;
+          width: 100% !important;
+          min-width: 0 !important;
+          padding: 9px !important;
+          box-sizing: border-box !important;
+        }
+        .ventas-pagina .producto-info strong,
+        .ventas-pagina .producto-codigo {
+          display: block !important;
+          overflow: hidden !important;
+          text-overflow: ellipsis !important;
+          white-space: nowrap !important;
+        }
+        .ventas-pagina .producto-info strong { font-size: 13px !important; }
+        .ventas-pagina .producto-codigo { font-size: 10px !important; }
+        .ventas-pagina .producto-precio-stock {
+          display: flex !important;
+          justify-content: space-between !important;
+          align-items: flex-end !important;
+          gap: 4px !important;
+          width: 100% !important;
+          min-width: 0 !important;
+        }
+        .ventas-pagina .producto-precio {
+          font-size: 14px !important;
+          font-weight: 800 !important;
+          white-space: nowrap !important;
+        }
+        .ventas-pagina .stock {
+          max-width: 50% !important;
+          overflow: hidden !important;
+          text-overflow: ellipsis !important;
+          font-size: 10px !important;
+          white-space: nowrap !important;
+        }
+        @container (max-width: 650px) {
+          .productos-grid { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; }
+        }
+        @container (max-width: 420px) {
+          .productos-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+        }
+      `}</style>
+
 
       {/* ENCABEZADO */}
 
@@ -3267,7 +3210,7 @@ window.onload = function () {
                 }}
               >
                 <strong>
-                  F1 · 💵 Retiro de dinero
+                  F2 · 💵 Retiro de dinero
                 </strong>
 
                 <span>
@@ -3299,7 +3242,7 @@ window.onload = function () {
                 }}
               >
                 <strong>
-                  F2 · 💰 Corte de caja
+                  F3 · 💰 Corte de caja
                 </strong>
 
                 <span>
@@ -3317,7 +3260,7 @@ window.onload = function () {
                 }
               >
                 <strong>
-                  F3 · 🖨 Imprimir ticket anterior
+                  F4 · 🖨 Imprimir ticket anterior
                 </strong>
               </button>
 
@@ -3340,7 +3283,7 @@ window.onload = function () {
                 }}
               >
                 <strong>
-                  F4 · 🧾 Historial de ventas
+                  F5 · 🧾 Historial de ventas
                 </strong>
               </button>
 
@@ -3356,7 +3299,7 @@ window.onload = function () {
                 }
               >
                 <strong>
-                  F5 · ✕ Salir
+                  F1 · ✕ Salir
                 </strong>
 
                 <span>
@@ -3364,51 +3307,53 @@ window.onload = function () {
                 </span>
               </button>
 
-              <button
-                type="button"
-                style={{
-                  ...estiloOpcionMenu,
-
-                  opacity:
-                    cierreSesionHabilitado
-                      ? 1
-                      : 0.55,
-                }}
+              <button type="button" style={estiloOpcionMenu}
                 onClick={() => {
-                  if (
-                    !cierreSesionHabilitado
-                  ) {
-                    setError(
-                      "Primero debes realizar el corte de caja antes de cerrar sesión."
-                    );
+                  setError("F9 requiere integrar el verificador de PIN existente.");
+                  setMostrarMenu(false);
+                }}>
+                <strong>F9 · 🔒 Poner caja en espera</strong>
+                <span>Pendiente de conectar la validación del PIN actual.</span>
+              </button>
 
-                    return;
-                  }
-
-                  setMostrarMenu(
-                    false
-                  );
-
-                  onCerrarCaja?.(
-                    ultimoCorteRealizado
-                  );
-                }}
-              >
-                <strong>
-                  F6 · 🚪 Cerrar sesión
-                </strong>
-
-                <span>
-                  {cierreSesionHabilitado
-                    ? "Corte realizado. Puedes cerrar la sesión."
-                    : "Primero realiza el corte de caja."}
-                </span>
+              <button type="button" style={estiloOpcionMenu}
+                onClick={solicitarCerrarSesion}>
+                <strong>F10 · 🚪 Cerrar sesión</strong>
+                <span>Siempre disponible. Registra el efectivo pendiente.</span>
               </button>
 
             </div>
 
           </section>
 
+        </div>
+      )}
+
+      {mostrarConfirmacionSalida && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 950,
+          background: "rgba(15,23,42,.7)", display: "grid", placeItems: "center", padding: 16 }}>
+          <section style={{ background: "white", padding: 26, borderRadius: 16,
+            width: "min(460px, 100%)", boxShadow: "0 20px 60px #0005" }}>
+            <h2>🚪 Confirmar cierre de sesión</h2>
+            {efectivoEnCaja > 0 ? (
+              <p>⚠️ Hay <strong>${efectivoEnCaja.toFixed(2)}</strong> de efectivo registrado
+                pendiente de corte. ¿Cerrar sesión de todos modos?</p>
+            ) : (
+              <p>¿Deseas cerrar la sesión de {usuario?.nombre || "este cajero"}?</p>
+            )}
+            <p style={{ fontSize: 13 }}>El cierre quedará registrado y no borrará el saldo.</p>
+            {error && <p role="alert" style={{ color: "#b91c1c" }}>{error}</p>}
+            <div style={{ display: "flex", gap: 12, justifyContent: "flex-end" }}>
+              <button type="button" disabled={cerrandoSesion}
+                onClick={() => { setMostrarConfirmacionSalida(false); setError(""); }}>
+                Cancelar
+              </button>
+              <button type="button" disabled={cerrandoSesion}
+                onClick={confirmarCerrarSesion}>
+                {cerrandoSesion ? "Registrando..." : "Cerrar sesión"}
+              </button>
+            </div>
+          </section>
         </div>
       )}
 
@@ -3564,9 +3509,9 @@ window.onload = function () {
               false
             )
           }
-          onConfirmar={
-            confirmarVenta
-          }
+          onConfirmar={confirmarVenta}
+          ownerUid={ownerUid}
+          productos={carrito.map(item => ({nombre: item.nombre, cantidad: item.cantidad, precio: item.precio}))}
         />
       )}
 
