@@ -3,87 +3,104 @@ import { doc, onSnapshot } from "firebase/firestore";
 import { db } from "../firebase/firebaseConfig";
 
 const moneda = (n) => Number(n || 0).toLocaleString("es-MX", { style: "currency", currency: "MXN" });
-const boton = { width: "100%", padding: "14px 12px", borderRadius: 12, border: 0, fontWeight: 800, fontSize: 15, cursor: "pointer" };
+const btn = { width: "100%", border: 0, borderRadius: 14, padding: "15px 16px", fontSize: 15, fontWeight: 750, cursor: "pointer" };
+const card = { background: "#f5f8ff", border: "1px solid #e0e9fa", borderRadius: 16, padding: 16 };
+const texto = { color: "#64748b", fontSize: 13, lineHeight: 1.6 };
+
+// Solo se permite redirigir a una sesión de Checkout auténtica de Stripe.
+// La URL debe crearla el backend tras validar el importe y el negocio.
+function urlCheckoutSegura(url) {
+  try {
+    const u = new URL(url);
+    return u.protocol === "https:" && u.hostname === "checkout.stripe.com" ? u.href : null;
+  } catch { return null; }
+}
 
 export default function PagoPublico({ id }) {
   const [pago, setPago] = useState(null);
   const [error, setError] = useState("");
-  const [reportado, setReportado] = useState(false);
   const [copiado, setCopiado] = useState("");
+  const [reportado, setReportado] = useState(false);
+  const [metodo, setMetodo] = useState("tarjeta");
 
   useEffect(() => {
-    setPago(null);
-    setError("");
-    setReportado(false);
+    setPago(null); setError(""); setReportado(false); setCopiado("");
     if (!/^[a-zA-Z0-9]{15,35}$/.test(id || "")) {
-      setError("Enlace inválido.");
-      return undefined;
+      setError("Enlace de pago inválido.");
+      return;
     }
     return onSnapshot(doc(db, "pagosPosInit", id), (snap) => {
-      if (!snap.exists()) {
-        setPago(null);
-        setError("Esta solicitud de pago no existe.");
-      } else {
-        setPago(snap.data());
-        setError("");
-      }
-    }, (e) => setError("No se pudo consultar el pago: " + e.message));
+      if (!snap.exists()) { setPago(null); setError("Esta solicitud de pago no existe."); return; }
+      setPago(snap.data()); setError("");
+    }, () => setError("No fue posible consultar la solicitud. Inténtalo nuevamente."));
   }, [id]);
 
-  const copiar = async (texto, etiqueta) => {
+  const copiar = async (valor, campo) => {
     try {
-      await navigator.clipboard.writeText(String(texto));
-      setCopiado(etiqueta);
-      setTimeout(() => setCopiado(""), 2500);
-    } catch {
-      setError("No se pudo copiar automáticamente. Mantén presionado el dato para copiarlo.");
-    }
+      await navigator.clipboard.writeText(String(valor));
+      setCopiado(campo);
+      window.setTimeout(() => setCopiado(""), 2500);
+    } catch { setError("No se pudo copiar. Mantén presionado el dato para seleccionarlo."); }
   };
 
   const confirmado = pago?.estado === "confirmado" && !!pago.ticket;
   const pendiente = pago?.estado === "pendiente";
+  const checkout = urlCheckoutSegura(pago?.stripeCheckoutUrl);
+  const totalValido = Number.isFinite(Number(pago?.total)) && Number(pago?.total) > 0;
+  const tieneSPEI = Boolean(pago?.banco && pago?.titular && pago?.clabe);
 
   return (
-    <main style={{ minHeight: "100vh", background: "linear-gradient(160deg,#dbeafe,#eef2ff 45%,#f8fafc)", padding: "24px 12px", fontFamily: "system-ui,sans-serif", color: "#0f172a", boxSizing: "border-box" }}>
-      <section style={{ maxWidth: 480, margin: "0 auto", background: "white", borderRadius: 22, padding: "24px 20px", boxShadow: "0 12px 35px #0f172a20" }}>
-        <div style={{ textAlign: "center", marginBottom: 20 }}>
-          <div style={{ fontSize: 36 }}>📱</div>
-          <h1 style={{ margin: "4px 0" }}>POS Init Pay</h1>
-          <p style={{ color: "#64748b", margin: 0, fontSize: 13 }}>Pago digital seguro · Transferencia SPEI</p>
-        </div>
-        {error && <p role="alert" style={{ color: "#b91c1c", background: "#fef2f2", padding: 12, borderRadius: 10 }}>{error}</p>}
-        {!pago ? (!error && <p style={{ textAlign: "center" }}>Consultando solicitud de pago...</p>) : <>
-          <div style={{ background: "#eff6ff", borderRadius: 16, padding: 20, textAlign: "center" }}>
-            <div style={{ color: "#475569", fontSize: 14 }}>Total de tu compra</div>
-            <div style={{ fontSize: "clamp(32px, 9vw, 44px)", fontWeight: 900, marginTop: 5 }}>{moneda(pago.total)}</div>
+    <main style={{ minHeight: "100vh", padding: "30px 12px", boxSizing: "border-box", background: "linear-gradient(160deg,#091b3b 0%,#143a75 55%,#e9f1ff 55%)", fontFamily: "system-ui,-apple-system,Segoe UI,sans-serif", color: "#10213c" }}>
+      <section style={{ maxWidth: 460, margin: "0 auto", padding: "26px 20px", borderRadius: 24, background: "#fff", boxShadow: "0 22px 55px #03152b40" }}>
+        <header style={{ textAlign: "center", marginBottom: 22 }}>
+          <div style={{ display: "inline-grid", placeItems: "center", width: 54, height: 54, borderRadius: 17, background: "#103775", color: "white", fontSize: 27 }}>💳</div>
+          <h1 style={{ margin: "12px 0 3px", color: "#102c5c", fontSize: 27 }}>POS Init <span style={{ color: "#2674ed" }}>Pay</span></h1>
+          <p style={{ ...texto, margin: 0 }}>Paga de forma fácil y segura</p>
+        </header>
+
+        {error && <p role="alert" style={{ background: "#fef2f2", color: "#991b1b", padding: 12, borderRadius: 12 }}>{error}</p>}
+        {!pago ? (!error && <p role="status" style={{ textAlign: "center" }}>Consultando solicitud de pago…</p>) : <>
+          <div style={{ ...card, textAlign: "center", background: "#eaf2ff" }}>
+            <div style={{ ...texto, fontSize: 14 }}>Total a pagar</div>
+            <div style={{ fontWeight: 850, fontSize: "clamp(32px,9vw,42px)", color: "#0d326b" }}>{moneda(pago.total)}</div>
+            <small style={{ color: "#55739b" }}>Pesos mexicanos · MXN</small>
           </div>
-          {confirmado ? <>
-            <p role="status" style={{ background: "#dcfce7", color: "#166534", padding: 14, borderRadius: 12, fontWeight: 800 }}>✅ Pago confirmado. ¡Gracias por tu compra!</p>
-            <h2>🧾 Tu ticket digital</h2>
-            <p style={{ overflowWrap: "anywhere", fontSize: 13 }}>Folio: {pago.ticket.folio}</p>
-            {(pago.ticket.productos || []).map((item, i) => (
-              <div key={i} style={{ display: "flex", justifyContent: "space-between", gap: 10, padding: "10px 0", borderBottom: "1px solid #e2e8f0" }}>
-                <span>{item.cantidad} × {item.nombre}</span><strong>{moneda(item.subtotal)}</strong>
-              </div>
-            ))}
+
+          {confirmado ? <div style={{ marginTop: 18 }}>
+            <p role="status" style={{ padding: 14, borderRadius: 12, background: "#dcfce7", color: "#166534", fontWeight: 750 }}>✅ Pago confirmado. ¡Gracias por tu compra!</p>
+            <h2 style={{ fontSize: 20 }}>🧾 Tu ticket digital</h2>
+            <p style={texto}>Folio: {pago.ticket.folio}</p>
+            {(pago.ticket.productos || []).map((item, i) => <div key={i} style={{ display: "flex", justifyContent: "space-between", gap: 12, padding: "10px 0", borderBottom: "1px solid #e2e8f0" }}><span>{item.cantidad} × {item.nombre}</span><strong>{moneda(item.subtotal)}</strong></div>)}
             <h3 style={{ textAlign: "right" }}>Total: {moneda(pago.ticket.total)}</h3>
-            <p style={{ fontSize: 13, color: "#475569" }}>Método: Transferencia SPEI</p>
-            <button type="button" onClick={() => window.print()} style={{ ...boton, background: "#0f172a", color: "white" }}>🧾 Imprimir / guardar ticket como PDF</button>
-          </> : pendiente ? <>
-            <p role="status" style={{ background: "#fef9c3", padding: 13, borderRadius: 12, fontWeight: 700 }}>⏳ {reportado ? "Avisaste al cajero. Espera la verificación del depósito." : "Pendiente de transferencia"}</p>
-            <h2 style={{ fontSize: 20 }}>🏦 Datos para transferir</h2>
-            <div style={{ background: "#f8fafc", padding: 15, borderRadius: 12, lineHeight: 1.9 }}>
-              <div>Banco: <strong>{pago.banco}</strong></div>
-              <div>Titular: <strong>{pago.titular}</strong></div>
-              <div>CLABE: <strong style={{ overflowWrap: "anywhere", userSelect: "all" }}>{pago.clabe}</strong></div>
+            <p style={texto}>Método: {pago.ticket.metodoPago || pago.metodoPago || "Pago confirmado"}</p>
+            <button type="button" onClick={() => window.print()} style={{ ...btn, background: "#102c5c", color: "white" }}>🧾 Imprimir / guardar ticket</button>
+          </div> : pendiente ? <div style={{ marginTop: 20 }}>
+            <h2 style={{ fontSize: 19, margin: "0 0 12px" }}>Elige cómo quieres pagar</h2>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 9 }}>
+              <button type="button" aria-pressed={metodo === "tarjeta"} onClick={() => setMetodo("tarjeta")} style={{ ...btn, background: metodo === "tarjeta" ? "#123d80" : "#eef3fc", color: metodo === "tarjeta" ? "white" : "#18345b" }}>💳 Tarjeta</button>
+              <button type="button" aria-pressed={metodo === "banco"} onClick={() => setMetodo("banco")} style={{ ...btn, background: metodo === "banco" ? "#123d80" : "#eef3fc", color: metodo === "banco" ? "white" : "#18345b" }}>🏦 Banco / SPEI</button>
             </div>
-            <button type="button" onClick={() => copiar(pago.clabe, "clabe")} style={{ ...boton, background: "#2563eb", color: "white", marginTop: 12 }}>{copiado === "clabe" ? "✅ CLABE copiada" : "📋 Copiar CLABE"}</button>
-            <button type="button" onClick={() => copiar(Number(pago.total).toFixed(2), "importe")} style={{ ...boton, background: "#dbeafe", color: "#1d4ed8", marginTop: 9 }}>{copiado === "importe" ? "✅ Importe copiado" : `💰 Copiar importe: ${moneda(pago.total)}`}</button>
-            <p style={{ color: "#334155", lineHeight: 1.5 }}>1. Copia la CLABE y el importe.<br />2. Abre tu aplicación bancaria y realiza la transferencia.<br />3. Regresa aquí y avisa al cajero.</p>
-            <button type="button" onClick={() => setReportado(true)} disabled={reportado} style={{ ...boton, background: reportado ? "#cbd5e1" : "#0f172a", color: reportado ? "#334155" : "white" }}>{reportado ? "⏳ Esperando al cajero" : "✅ Ya hice la transferencia"}</button>
-            <p style={{ fontSize: 12, color: "#64748b", lineHeight: 1.5 }}>Este botón solo muestra un aviso en tu pantalla: no verifica ni confirma el pago. El negocio debe comprobar el depósito en su banco. El ticket aparecerá automáticamente aquí cuando confirme.</p>
-          </> : <p role="status" style={{ background: "#fef2f2", color: "#991b1b", padding: 14, borderRadius: 12 }}>Esta solicitud ya no está disponible para pagar. Consulta al cajero.</p>}
+            {metodo === "tarjeta" ? <div style={{ ...card, marginTop: 14 }}>
+              <h3 style={{ margin: "0 0 8px", fontSize: 17 }}>Paga con tarjeta</h3>
+              <p style={{ ...texto, marginTop: 0 }}>Tarjeta de débito o crédito. Apple Pay y Google Pay podrán aparecer en el proveedor de pagos si están habilitados y tu dispositivo es compatible.</p>
+              {checkout && totalValido ? <a href={checkout} style={{ ...btn, display: "block", boxSizing: "border-box", textAlign: "center", textDecoration: "none", background: "#2563eb", color: "white" }}>🔒 Continuar al pago seguro</a> : <>
+                <button type="button" disabled style={{ ...btn, background: "#cbd5e1", color: "#475569", cursor: "not-allowed" }}>Pago con tarjeta próximamente</button>
+                <p style={{ ...texto, marginBottom: 0 }}>Este negocio todavía no tiene habilitado el procesamiento de tarjetas. Puedes seleccionar Banco / SPEI si está disponible.</p>
+              </>}
+            </div> : <div style={{ ...card, marginTop: 14 }}>
+              <h3 style={{ margin: "0 0 10px", fontSize: 17 }}>🏦 Transferencia SPEI</h3>
+              {tieneSPEI ? <>
+                <div style={{ fontSize: 14, lineHeight: 2, overflowWrap: "anywhere" }}><div>Banco: <strong>{pago.banco}</strong></div><div>Titular: <strong>{pago.titular}</strong></div><div>CLABE: <strong style={{ userSelect: "all" }}>{pago.clabe}</strong></div></div>
+                <button type="button" onClick={() => copiar(pago.clabe, "clabe")} style={{ ...btn, marginTop: 12, background: "#2563eb", color: "white" }}>{copiado === "clabe" ? "✓ CLABE copiada" : "📋 Copiar CLABE"}</button>
+                <button type="button" onClick={() => copiar(Number(pago.total).toFixed(2), "importe")} style={{ ...btn, marginTop: 9, background: "#dce9ff", color: "#16458a" }}>{copiado === "importe" ? "✓ Importe copiado" : `Copiar importe: ${moneda(pago.total)}`}</button>
+                <p style={texto}>Realiza la transferencia en tu aplicación bancaria y solicita al cajero que verifique el depósito.</p>
+                <button type="button" disabled={reportado} onClick={() => setReportado(true)} style={{ ...btn, background: reportado ? "#cbd5e1" : "#102c5c", color: reportado ? "#334155" : "white" }}>{reportado ? "⏳ Esperando verificación" : "✅ Ya hice la transferencia"}</button>
+                <p style={{ ...texto, marginBottom: 0 }}>Este aviso solo cambia tu pantalla. No notifica al cajero ni confirma el depósito. El negocio debe verificarlo antes de aprobar el pago.</p>
+              </> : <p style={texto}>El negocio todavía no ha configurado sus datos para recibir transferencias.</p>}
+            </div>}
+          </div> : <p role="status" style={{ marginTop: 18, background: "#fef2f2", color: "#991b1b", padding: 14, borderRadius: 12 }}>Esta solicitud ya no está disponible para pagar. Consulta al cajero.</p>}
         </>}
+        <footer style={{ ...texto, textAlign: "center", marginTop: 24 }}>🔒 POS Init Pay · Nunca compartas tu NIP bancario</footer>
       </section>
     </main>
   );

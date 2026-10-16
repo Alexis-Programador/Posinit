@@ -345,9 +345,69 @@ service cloud.firestore {
 
 
     // =====================================================
+    // POS INIT PAY - QR / TRANSFERENCIAS SPEI
+    // =====================================================
+    match /pagosPosInit/{pagoId} {
+
+      function propietarioAutenticado() {
+        return request.auth != null
+          && request.auth.uid == resource.data.ownerUid;
+      }
+
+      // Un enlace con ID aleatorio permite leer UN pago, no listarlos.
+      // No almacenar datos privados del cliente en esta colección.
+      allow get: if true;
+      allow list: if false;
+
+      // La caja crea pagos pendientes con datos de transferencia.
+      allow create: if request.auth != null
+        && request.resource.data.keys().hasOnly([
+          "ownerUid", "total", "estado", "banco", "titular",
+          "clabe", "productos", "creadoEn"
+        ])
+        && request.resource.data.keys().hasAll([
+          "ownerUid", "total", "estado", "banco", "titular",
+          "clabe", "productos", "creadoEn"
+        ])
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.estado == "pendiente"
+        && request.resource.data.total is number
+        && request.resource.data.total > 0
+        && request.resource.data.banco is string
+        && request.resource.data.titular is string
+        && request.resource.data.clabe is string
+        && request.resource.data.clabe.matches('^[0-9]{18}$')
+        && request.resource.data.productos is list
+        && request.resource.data.creadoEn == request.time;
+
+      // El cliente no puede confirmar ni modificar el pago.
+      // La caja autenticada solo puede pasar de pendiente a confirmado
+      // y agregar los datos del ticket de esa venta.
+      allow update: if propietarioAutenticado()
+        && resource.data.estado == "pendiente"
+        && request.resource.data.estado == "confirmado"
+        && request.resource.data.diff(resource.data)
+          .affectedKeys().hasOnly([
+            "estado", "ventaId", "fechaConfirmacion", "ticket"
+          ])
+        && request.resource.data.keys().hasAll([
+          "ventaId", "fechaConfirmacion", "ticket"
+        ])
+        && request.resource.data.ventaId is string
+        && request.resource.data.ventaId.size() > 0
+        && request.resource.data.fechaConfirmacion == request.time
+        && request.resource.data.ticket is map
+        && request.resource.data.ticket.folio == request.resource.data.ventaId
+        && request.resource.data.ticket.total == resource.data.total
+        && request.resource.data.ticket.metodoPago == "transferencia"
+        && request.resource.data.ticket.productos is list;
+
+      allow delete: if false;
+    }
+
+    // =====================================================
     // TODO LO DEMÁS BLOQUEADO
     // =====================================================
-
     match /{document=**} {
       allow read, write: if false;
     }

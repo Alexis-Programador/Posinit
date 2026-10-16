@@ -456,15 +456,9 @@ function AppPrivada() {
   ) {
     return (
       <Ventas
-        ownerUid={
-          ownerUid
-        }
-        usuario={
-          usuarioSeleccionado
-        }
-        onCerrarCaja={
-          cerrarCaja
-        }
+        ownerUid={ownerUid}
+        usuario={usuarioSeleccionado}
+        onCerrarCaja={cerrarCaja}
       />
     );
   }

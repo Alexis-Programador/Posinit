@@ -345,3 +345,65 @@ exports.posPinVerify = onCall(async (request) => {
     };
   });
 });
+
+// =====================================================
+// POS INIT PAY - CREAR SOLICITUD SPEI DESDE EL SERVIDOR
+// No procesa tarjetas ni confirma depósitos automáticamente.
+// =====================================================
+exports.posPayCrearSolicitud = onCall(async (request) => {
+  const ownerUid = request.auth?.uid;
+  if (!ownerUid || request.data?.ownerUid !== ownerUid) {
+    throw new HttpsError("permission-denied", "Se requiere la sesión del propietario.");
+  }
+
+  const articulos = request.data?.productos;
+  if (!Array.isArray(articulos) || articulos.length < 1 || articulos.length > 80) {
+    throw new HttpsError("invalid-argument", "La venta debe incluir entre 1 y 80 productos.");
+  }
+
+  const configuracion = await db.doc(`usuarios/${ownerUid}/configuracion/posInitPay`).get();
+  const datos = configuracion.data() || {};
+  if (!configuracion.exists || typeof datos.banco !== "string" || !datos.banco.trim() ||
+      typeof datos.titular !== "string" || !datos.titular.trim() ||
+      typeof datos.clabe !== "string" || !/^\d{18}$/.test(datos.clabe)) {
+    throw new HttpsError("failed-precondition", "Configura primero una cuenta SPEI válida.");
+  }
+
+  const ids = new Set();
+  const items = [];
+  let centavos = 0;
+  for (const articulo of articulos) {
+    const id = articulo?.id;
+    const cantidad = articulo?.cantidad;
+    if (typeof id !== "string" || !id || id.includes("/") || id.length > 128 ||
+        !Number.isSafeInteger(cantidad) || cantidad < 1 || cantidad > 10000 || ids.has(id)) {
+      throw new HttpsError("invalid-argument", "Producto o cantidad inválidos o duplicados.");
+    }
+    ids.add(id);
+    const snap = await db.doc(`usuarios/${ownerUid}/productos/${id}`).get();
+    if (!snap.exists) throw new HttpsError("not-found", "Un producto ya no existe.");
+    const producto = snap.data();
+    const precio = Number(producto.precioVenta);
+    const precioCentavos = Math.round(precio * 100);
+    if (!Number.isFinite(precio) || precio < 0 || !Number.isSafeInteger(precioCentavos) ||
+        Math.abs(precio * 100 - precioCentavos) > 0.00001) {
+      throw new HttpsError("failed-precondition", "El precio del catálogo no es válido.");
+    }
+    centavos += precioCentavos * cantidad;
+    if (!Number.isSafeInteger(centavos) || centavos > 100000000) {
+      throw new HttpsError("invalid-argument", "Importe fuera del límite permitido.");
+    }
+    items.push({ id, nombre: String(producto.nombre || "Producto").slice(0, 160),
+      cantidad, precio: precioCentavos / 100 });
+  }
+  if (centavos <= 0) throw new HttpsError("invalid-argument", "El total debe ser mayor que cero.");
+  const total = centavos / 100;
+  // El total no se toma del navegador: se calcula con precios del catálogo.
+  const pagoRef = db.collection("pagosPosInit").doc();
+  await pagoRef.create({
+    ownerUid, total, estado: "pendiente", tipo: "spei_manual",
+    banco: datos.banco.trim(), titular: datos.titular.trim(), clabe: datos.clabe,
+    productos: items, creadoEn: admin.firestore.FieldValue.serverTimestamp(),
+  });
+  return { pagoId: pagoRef.id, total };
+});

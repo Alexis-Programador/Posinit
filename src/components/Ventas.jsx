@@ -20,6 +20,8 @@ import {
 } from "../firebase/firebaseConfig";
 
 import ModalCobro from "./ModalCobro";
+import ConfiguracionPosInitPay from "./ConfiguracionPosInitPay";
+import { getAuth } from "firebase/auth";
 import CorteCaja from "./CorteCaja";
 import HistorialVentas from "./HistorialVentas";
 import { QRCodeSVG } from "qrcode.react";
@@ -115,6 +117,9 @@ function Ventas({
     mostrarMenu,
     setMostrarMenu,
   ] = useState(false);
+
+  const [mostrarConfigPay, setMostrarConfigPay] = useState(false);
+  const esPropietario = Boolean(ownerUid && getAuth().currentUser?.uid === ownerUid);
 
   const [
     mostrarCerrarSesionCorte,
@@ -946,7 +951,7 @@ Imprimir ticket
       if (!["F1", "F2", "F3", "F4", "F5", "F9", "F10"].includes(event.key)) return;
       if (event.key !== "F1") event.preventDefault();
       if (mostrarConfirmacionSalida || ticketVentaActual || mostrarConfirmarRetiro ||
-          mostrarCerrarSesionCorte || mostrarCobro) return;
+          mostrarCerrarSesionCorte || mostrarCobro || mostrarConfigPay) return;
       if (mostrarHistorial || mostrarCorte) {
         if (event.key === "F1") {
           event.preventDefault();
@@ -991,7 +996,7 @@ Imprimir ticket
     window.addEventListener("keydown", manejarTecla);
     return () => window.removeEventListener("keydown", manejarTecla);
   }, [mostrarMenu, mostrarHistorial, mostrarCorte, mostrarCobro,
-      mostrarCerrarSesionCorte, mostrarConfirmarRetiro, mostrarConfirmacionSalida,
+      mostrarCerrarSesionCorte, mostrarConfirmarRetiro, mostrarConfirmacionSalida, mostrarConfigPay,
       ticketVentaActual, efectivoEnCaja, ultimoCorteRealizado, onCerrarCaja]);
 
   // =========================================================
@@ -1130,6 +1135,7 @@ Imprimir ticket
     ) => {
       if (
         mostrarMenu ||
+        mostrarConfigPay ||
         mostrarCobro ||
         mostrarCorte ||
         mostrarHistorial ||
@@ -1350,6 +1356,7 @@ Imprimir ticket
     productosFiltrados,
     productoSeleccionado,
     mostrarMenu,
+    mostrarConfigPay,
     mostrarCobro,
     mostrarCorte,
     mostrarHistorial,
@@ -1624,7 +1631,7 @@ Imprimir ticket
   useEffect(() => {
     const manejarShift = (event) => {
       if (event.key !== "Shift" || event.repeat || carrito.length === 0 ||
-          mostrarCobro || mostrarMenu || mostrarCorte || mostrarHistorial || ticketVentaActual) return;
+          mostrarCobro || mostrarMenu || mostrarConfigPay || mostrarCorte || mostrarHistorial || ticketVentaActual) return;
       const el = document.activeElement;
       if (["INPUT", "TEXTAREA", "SELECT"].includes(el?.tagName) || el?.isContentEditable) return;
       event.preventDefault();
@@ -1632,7 +1639,7 @@ Imprimir ticket
     };
     window.addEventListener("keyup", manejarShift);
     return () => window.removeEventListener("keyup", manejarShift);
-  }, [carrito, mostrarCobro, mostrarMenu, mostrarCorte, mostrarHistorial, ticketVentaActual]);
+  }, [carrito, mostrarCobro, mostrarMenu, mostrarConfigPay, mostrarCorte, mostrarHistorial, ticketVentaActual]);
 
   // =========================================================
   // CONFIRMAR VENTA
@@ -3287,6 +3294,21 @@ window.onload = function () {
                 </strong>
               </button>
 
+              {esPropietario && (
+                <button
+                  type="button"
+                  style={estiloOpcionMenu}
+                  onClick={() => {
+                    setMostrarMenu(false);
+                    setMostrarConfigPay(true);
+                    setError("");
+                  }}
+                >
+                  <strong>⚙️ Configuración · POS Init Pay</strong>
+                  <span>Administrar la cuenta bancaria y métodos de cobro.</span>
+                </button>
+              )}
+
               <button
                 type="button"
                 style={
@@ -3494,6 +3516,25 @@ window.onload = function () {
         </div>
       )}
 
+      {/* CONFIGURACIÓN DE PAGOS: SOLO PROPIETARIO AUTENTICADO */}
+      {mostrarConfigPay && esPropietario && (
+        <div role="dialog" aria-modal="true" aria-label="Configuración POS Init Pay"
+          style={{ position: "fixed", inset: 0, zIndex: 1000, background: "#07172cbb",
+            display: "grid", placeItems: "center", padding: 14, overflowY: "auto" }}>
+          <section style={{ width: "min(540px, 100%)", maxHeight: "calc(100vh - 28px)",
+            overflowY: "auto", background: "white", borderRadius: 18, padding: 20,
+            boxSizing: "border-box" }}>
+            <button type="button" onClick={() => setMostrarConfigPay(false)}
+              style={{ float: "right", padding: "8px 12px", cursor: "pointer",
+                border: 0, borderRadius: 8, background: "#e8eef7" }}>
+              ✕ Cerrar
+            </button>
+            <h2 style={{ marginTop: 5 }}>⚙️ POS Init Pay</h2>
+            <ConfiguracionPosInitPay ownerUid={ownerUid} />
+          </section>
+        </div>
+      )}
+
       {/* COBRO */}
 
       {mostrarCobro && (
@@ -3511,7 +3552,7 @@ window.onload = function () {
           }
           onConfirmar={confirmarVenta}
           ownerUid={ownerUid}
-          productos={carrito.map(item => ({nombre: item.nombre, cantidad: item.cantidad, precio: item.precio}))}
+          productos={carrito.map(item => ({id: String(item.id), nombre: item.nombre, cantidad: item.cantidad, precio: item.precio}))}
         />
       )}
 

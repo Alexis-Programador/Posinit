@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { collection, doc, onSnapshot, serverTimestamp, setDoc } from "firebase/firestore";
+import { collection, doc, getDoc, onSnapshot, serverTimestamp, setDoc } from "firebase/firestore";
 import { db } from "../firebase/firebaseConfig";
 import { QRCodeSVG } from "qrcode.react";
 
@@ -9,9 +9,21 @@ function ModalCobro({ total = 0, procesando = false, onCerrar, onConfirmar, owne
   const [recibidoTexto, setRecibidoTexto] = useState("");
   const [error, setError] = useState("");
   const inputRef = useRef(null);
-  const [banco, setBanco] = useState(() => localStorage.getItem("pospay_banco") || "Nu México");
-  const [titular, setTitular] = useState(() => localStorage.getItem("pospay_titular") || "");
-  const [clabe, setClabe] = useState(() => localStorage.getItem("pospay_clabe") || "");
+  const [banco, setBanco] = useState("");
+  const [titular, setTitular] = useState("");
+  const [clabe, setClabe] = useState("");
+  useEffect(() => {
+    let activo = true;
+    if (!ownerUid) return undefined;
+    getDoc(doc(db, "usuarios", ownerUid, "configuracion", "posInitPay"))
+      .then(snap => {
+        if (!activo || !snap.exists()) return;
+        const d = snap.data();
+        setBanco(d.banco || ""); setTitular(d.titular || ""); setClabe(d.clabe || "");
+      })
+      .catch(() => { if (activo) setError("No se pudo cargar la configuración bancaria del negocio."); });
+    return () => { activo = false; };
+  }, [ownerUid]);
   const [pagoId, setPagoId] = useState("");
   const [estadoPago, setEstadoPago] = useState("");
   const [creandoPago, setCreandoPago] = useState(false);
@@ -26,23 +38,42 @@ function ModalCobro({ total = 0, procesando = false, onCerrar, onConfirmar, owne
   const generarPago = async () => {
     if (creandoPago || pagoId) return;
     if (!ownerUid || !titular.trim() || !banco.trim() || !/^\d{18}$/.test(clabe.trim())) {
-      setError("Escribe banco, titular y una CLABE de 18 dígitos."); return;
+      setError("El propietario debe configurar una cuenta SPEI válida en POS Init Pay."); return;
     }
     setCreandoPago(true); setError("");
     try {
-      const ref = doc(collection(db, "pagosPosInit"));
-      await setDoc(ref, {
-        ownerUid, total: Number(totalNumero.toFixed(2)), estado: "pendiente",
-        banco: banco.trim(), titular: titular.trim(), clabe: clabe.trim(),
-        productos: productos.map(x => ({ nombre: String(x.nombre || "Producto"),
-          cantidad: Number(x.cantidad || 0), precio: Number(x.precio || 0) })),
+      // Spark: el importe proviene del carrito local. Esto NO es verificación bancaria.
+      if (!Number.isFinite(totalNumero) || totalNumero <= 0 || !Array.isArray(productos) || !productos.length) {
+        throw new Error("No hay productos válidos para generar el cobro.");
+      }
+      const detalle = productos.map((item) => ({
+        id: String(item.id),
+        cantidad: Number(item.cantidad),
+        nombre: String(item.nombre || "Producto").slice(0, 120),
+        precio: Number(item.precio),
+      }));
+      if (detalle.some((item) => !item.id || !Number.isInteger(item.cantidad) || item.cantidad <= 0 ||
+        !Number.isFinite(item.precio) || item.precio < 0)) {
+        throw new Error("El carrito contiene productos inválidos.");
+      }
+      const totalCalculado = Math.round(detalle.reduce((suma, item) =>
+        suma + item.precio * item.cantidad, 0) * 100) / 100;
+      if (Math.abs(totalCalculado - totalNumero) > 0.001) {
+        throw new Error("El total del carrito no coincide. Actualiza los productos.");
+      }
+      const pagoRef = doc(collection(db, "pagosPosInit"));
+      await setDoc(pagoRef, {
+        ownerUid,
+        total: totalCalculado,
+        estado: "pendiente",
+        banco: banco.trim(),
+        titular: titular.trim(),
+        clabe: clabe.trim(),
+        productos: detalle,
         creadoEn: serverTimestamp(),
       });
-      localStorage.setItem("pospay_banco", banco.trim());
-      localStorage.setItem("pospay_titular", titular.trim());
-      localStorage.setItem("pospay_clabe", clabe.trim());
-      setPagoId(ref.id); setEstadoPago("pendiente");
-    } catch (e) { setError("No se pudo generar el QR. Revisa las reglas de Firestore: " + e.message); }
+      setPagoId(pagoRef.id); setEstadoPago("pendiente");
+    } catch (e) { setError("No se pudo generar el QR. Revisa tu conexión, las reglas de Firestore y la configuración SPEI: " + e.message); }
     finally { setCreandoPago(false); }
   };
   const totalNumero = Number(total || 0);
@@ -92,43 +123,46 @@ function ModalCobro({ total = 0, procesando = false, onCerrar, onConfirmar, owne
   });
 
   const estiloBoton = (seleccionado) => ({
-    minHeight: 88, border: seleccionado ? "2px solid #2563eb" : "2px solid #cbd5e1",
+    minHeight: 58, border: seleccionado ? "2px solid #2563eb" : "2px solid #cbd5e1",
     borderRadius: 12, background: seleccionado ? "#eff6ff" : "#f8fafc",
     fontWeight: 800, fontSize: 15, cursor: "pointer", color: "#0f172a",
   });
 
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 1000, background: "rgba(15,23,42,.55)", display: "grid", placeItems: "center", padding: 18 }}>
-      <section role="dialog" aria-modal="true" aria-label="Cobrar venta" style={{ width: "min(600px,100%)", maxHeight: "95vh", overflowY: "auto", background: "#fff", borderRadius: 20, padding: 26, boxShadow: "0 24px 70px rgba(0,0,0,.3)", color: "#0f172a", boxSizing: "border-box" }}>
+      <section role="dialog" aria-modal="true" aria-label="Cobrar venta" style={{ width: "min(600px,100%)", maxHeight: "min(94dvh, 760px)", overflowY: "auto", background: "#fff", borderRadius: 20, padding: 16, boxShadow: "0 24px 70px rgba(0,0,0,.3)", color: "#0f172a", boxSizing: "border-box" }}>
         <div style={{ display: "flex", justifyContent: "space-between", gap: 16 }}>
-          <div><h2 style={{ margin: 0, fontSize: 26 }}>Cobrar venta</h2><p style={{ margin: "5px 0 0", color: "#64748b" }}>Selecciona el método de pago.</p></div>
+          <div><h2 style={{ margin: 0, fontSize: 22 }}>Cobrar venta</h2><p style={{ margin: "5px 0 0", color: "#64748b" }}>Selecciona el método de pago.</p></div>
           <button type="button" onClick={onCerrar} disabled={procesando} aria-label="Cerrar" style={{ width: 38, height: 38, border: 0, borderRadius: 10, fontWeight: 900, fontSize: 18, cursor: "pointer" }}>×</button>
         </div>
-        <div style={{ marginTop: 22, padding: 18, borderRadius: 14, background: "#f1f5f9", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <strong>Total</strong><strong style={{ fontSize: 30 }}>${totalNumero.toFixed(2)}</strong>
+        <div style={{ marginTop: 12, padding: 12, borderRadius: 14, background: "#f1f5f9", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <strong>Total</strong><strong style={{ fontSize: 26 }}>${totalNumero.toFixed(2)}</strong>
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginTop: 24 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 12 }}>
           <button type="button" onClick={() => { setMetodoPago("efectivo"); setError(""); }} style={estiloBoton(metodoPago === "efectivo")}>💵<br />Efectivo</button>
-          <button type="button" onClick={() => { setMetodoPago("digital"); setError(""); }} style={estiloBoton(metodoPago === "digital")}>📱<br />QR / Transferencia</button>
+          <button type="button" onClick={() => { setMetodoPago("digital"); setError(""); }} style={estiloBoton(metodoPago === "digital")}>📱<br />POS Init Pay</button>
         </div>
         {metodoPago === "efectivo" ? <>
           <label htmlFor="dineroRecibido" style={{ display: "block", marginTop: 22, marginBottom: 8, fontWeight: 800 }}>Dinero recibido</label>
           <input ref={inputRef} id="dineroRecibido" type="number" min="0" step="1" value={recibidoTexto} onChange={(e) => { setRecibidoTexto(e.target.value); setError(""); }} autoFocus style={{ width: "100%", boxSizing: "border-box", padding: 14, border: "2px solid #2563eb", borderRadius: 11, fontSize: 20 }} />
           <div style={{ display: "flex", justifyContent: "space-between", marginTop: 22, paddingBottom: 14, borderBottom: "1px solid #cbd5e1", fontSize: 18 }}><strong>Cambio</strong><strong style={{ color: "#15803d", fontSize: 22 }}>${cambio.toFixed(2)}</strong></div>
           <p style={{ color: "#64748b", fontSize: 13 }}>↑ y ↓ aumentan o disminuyen $1. Backspace borra; Escape cancela.</p>
-        </> : <div style={{ marginTop: 18, padding: 16, background: "#eff6ff", borderRadius: 12, lineHeight: 1.5 }}>
+        </> : <div style={{ marginTop: 12, padding: 12, background: "#eff6ff", borderRadius: 12, lineHeight: 1.5 }}>
           <strong>📱 POS Init Pay — Transferencia SPEI</strong>
           {!pagoId ? <>
-            <p style={{ fontSize: 13 }}>Configura la cuenta receptora del negocio. Estos datos aparecerán al cliente.</p>
-            <label style={{ display: "block", marginBottom: 8 }}>Banco<input value={banco} onChange={e => setBanco(e.target.value)} style={{ width: "100%", padding: 10, boxSizing: "border-box" }} /></label>
-            <label style={{ display: "block", marginBottom: 8 }}>Titular<input value={titular} onChange={e => setTitular(e.target.value)} style={{ width: "100%", padding: 10, boxSizing: "border-box" }} /></label>
-            <label style={{ display: "block", marginBottom: 8 }}>CLABE (18 dígitos)<input value={clabe} onChange={e => setClabe(e.target.value.replace(/\D/g, "").slice(0, 18))} inputMode="numeric" style={{ width: "100%", padding: 10, boxSizing: "border-box" }} /></label>
-            <button type="button" onClick={generarPago} disabled={creandoPago} style={{ padding: 14, width: "100%", background: "#2563eb", color: "white", border: 0, borderRadius: 9, fontWeight: 800 }}>{creandoPago ? "Generando..." : "Generar QR de pago"}</button>
-          </> : <div style={{ textAlign: "center", paddingTop: 12 }}>
-            <QRCodeSVG value={urlPago} size={196} level="M" />
-            <p><strong>Escanea para pagar ${totalNumero.toFixed(2)}</strong></p>
-            <p style={{ fontSize: 12, overflowWrap: "anywhere" }}>{urlPago}</p>
-            <p>Estado: <strong>{estadoPago === "pendiente" ? "⏳ Esperando verificación" : estadoPago}</strong></p>
+            <p style={{ fontSize: 12, margin: "7px 0" }}>
+              {banco && titular && /^\d{18}$/.test(clabe) ?
+                `Cuenta SPEI configurada: ${banco} · ${titular}` :
+                "La cuenta SPEI aún no está configurada. El propietario debe configurarla desde POS Init Pay."}
+            </p>
+            <button type="button" onClick={generarPago} disabled={creandoPago || !banco || !titular || !/^\d{18}$/.test(clabe)}
+              style={{ padding: 10, width: "100%", background: "#2563eb", color: "white", border: 0, borderRadius: 9, fontWeight: 800, cursor: "pointer" }}>
+              {creandoPago ? "Generando..." : "Generar QR de pago"}
+            </button>          </> : <div style={{ textAlign: "center", paddingTop: 6 }}>
+            <QRCodeSVG value={urlPago} size={142} level="M" />
+            <p style={{ margin: "6px 0", fontSize: 13 }}><strong>Escanea para pagar ${totalNumero.toFixed(2)}</strong></p>
+            <a href={urlPago} target="_blank" rel="noreferrer" style={{ display: "block", fontSize: 12, margin: "5px 0" }}>Abrir enlace de pago</a>
+            <p style={{ margin: "5px 0", fontSize: 13 }}>Estado: <strong>{estadoPago === "pendiente" ? "⏳ Esperando verificación" : estadoPago}</strong></p>
             <label style={{ display: "block", textAlign: "left", background: "white", padding: 12, borderRadius: 8 }}>
               <input type="checkbox" checked={depositoVerificado} onChange={e => setDepositoVerificado(e.target.checked)} /> He comprobado en mi banca que el dinero llegó a la cuenta y coincide el importe.
             </label>
@@ -136,9 +170,9 @@ function ModalCobro({ total = 0, procesando = false, onCerrar, onConfirmar, owne
           </div>}
         </div>}
         {error && <div role="alert" style={{ marginTop: 14, padding: 11, borderRadius: 9, background: "#fef2f2", color: "#b91c1c", fontWeight: 700 }}>{error}</div>}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1.25fr", gap: 12, marginTop: 20 }}>
-          <button type="button" onClick={onCerrar} disabled={procesando} style={{ minHeight: 52, border: 0, borderRadius: 11, fontWeight: 800, cursor: "pointer" }}>Escape · Cancelar</button>
-          <button type="button" onClick={confirmar} disabled={procesando || creandoPago || (metodoPago === "digital" && (!pagoId || !depositoVerificado || estadoPago !== "pendiente"))} style={{ minHeight: 52, border: 0, borderRadius: 11, background: "#0f172a", color: "#fff", fontWeight: 800, cursor: "pointer" }}>{procesando ? "Procesando..." : metodoPago === "efectivo" ? "Enter · Confirmar venta" : "Confirmar depósito verificado"}</button>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1.25fr", gap: 12, marginTop: 12 }}>
+          <button type="button" onClick={onCerrar} disabled={procesando} style={{ minHeight: 44, border: 0, borderRadius: 11, fontWeight: 800, cursor: "pointer" }}>Escape · Cancelar</button>
+          <button type="button" onClick={confirmar} disabled={procesando || creandoPago || (metodoPago === "digital" && (!pagoId || !depositoVerificado || estadoPago !== "pendiente"))} style={{ minHeight: 44, border: 0, borderRadius: 11, background: "#0f172a", color: "#fff", fontWeight: 800, cursor: "pointer" }}>{procesando ? "Procesando..." : metodoPago === "efectivo" ? "Enter · Confirmar venta" : "Confirmar depósito verificado"}</button>
         </div>
       </section>
     </div>
