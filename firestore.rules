@@ -259,26 +259,15 @@ service cloud.firestore {
                          == request.auth.uid;
 
         allow delete: if request.auth != null
-              && request.auth.uid == uid
-              && resource.data.propietarioUid == request.auth.uid;
+                      && request.auth.uid == uid
+                      && resource.data.propietarioUid
+                         == request.auth.uid;
       }
     }
 
 
     // =====================================================
     // PIN BÁSICO DE CAJEROS - FIREBASE SPARK
-    // =====================================================
-    //
-    // Ruta:
-    // posPinBasico/{ownerUid}/cajeros/{usuarioId}
-    //
-    // IMPORTANTE:
-    // El navegador puede leer los hashes y actualizar
-    // intentos si utiliza la sesión del propietario.
-    //
-    // Es un control de acceso básico, NO una barrera
-    // de seguridad resistente a manipulaciones.
-    //
     // =====================================================
 
     match /posPinBasico/{ownerUid}/cajeros/{usuarioId} {
@@ -345,8 +334,9 @@ service cloud.firestore {
 
 
     // =====================================================
-    // POS INIT PAY - QR / TRANSFERENCIAS SPEI
+    // POS INIT PAY - SPEI + STRIPE
     // =====================================================
+
     match /pagosPosInit/{pagoId} {
 
       function propietarioAutenticado() {
@@ -354,20 +344,52 @@ service cloud.firestore {
           && request.auth.uid == resource.data.ownerUid;
       }
 
-      // Un enlace con ID aleatorio permite leer UN pago, no listarlos.
-      // No almacenar datos privados del cliente en esta colección.
+      // La confirmación de Stripe debe haber sido
+      // registrada previamente por Cloudflare Worker.
+      function stripeVerificado() {
+        return resource.data.keys().hasAll([
+            "stripeConfirmacion"
+          ])
+          && resource.data.stripeConfirmacion is map
+          && resource.data.stripeConfirmacion.proveedor == "stripe"
+          && resource.data.stripeConfirmacion.estado == "paid"
+          && resource.data.stripeConfirmacion.moneda == "mxn"
+          && resource.data.stripeConfirmacion.importeCentavos
+             == int(resource.data.total * 100)
+          && resource.data.stripeConfirmacion.sessionId is string
+          && resource.data.stripeConfirmacion.sessionId.size() > 0;
+      }
+
+      // Un cliente puede consultar un pago por su ID.
+      // No puede listar todos los pagos.
       allow get: if true;
       allow list: if false;
 
-      // La caja crea pagos pendientes con datos de transferencia.
+
+      // ===================================================
+      // CREAR SOLICITUD DE PAGO
+      // ===================================================
+
       allow create: if request.auth != null
         && request.resource.data.keys().hasOnly([
-          "ownerUid", "total", "estado", "banco", "titular",
-          "clabe", "productos", "creadoEn"
+          "ownerUid",
+          "total",
+          "estado",
+          "banco",
+          "titular",
+          "clabe",
+          "productos",
+          "creadoEn"
         ])
         && request.resource.data.keys().hasAll([
-          "ownerUid", "total", "estado", "banco", "titular",
-          "clabe", "productos", "creadoEn"
+          "ownerUid",
+          "total",
+          "estado",
+          "banco",
+          "titular",
+          "clabe",
+          "productos",
+          "creadoEn"
         ])
         && request.resource.data.ownerUid == request.auth.uid
         && request.resource.data.estado == "pendiente"
@@ -380,34 +402,80 @@ service cloud.firestore {
         && request.resource.data.productos is list
         && request.resource.data.creadoEn == request.time;
 
-      // El cliente no puede confirmar ni modificar el pago.
-      // La caja autenticada solo puede pasar de pendiente a confirmado
-      // y agregar los datos del ticket de esa venta.
+
+      // ===================================================
+      // CONFIRMAR PAGO SPEI O STRIPE
+      // ===================================================
+
       allow update: if propietarioAutenticado()
+
+        // El pago solo puede confirmarse una vez.
         && resource.data.estado == "pendiente"
         && request.resource.data.estado == "confirmado"
+
+        // No se pueden alterar los datos originales
+        // ni la confirmación que guardó Cloudflare.
         && request.resource.data.diff(resource.data)
           .affectedKeys().hasOnly([
-            "estado", "ventaId", "fechaConfirmacion", "ticket"
+            "estado",
+            "ventaId",
+            "fechaConfirmacion",
+            "ticket"
           ])
+
         && request.resource.data.keys().hasAll([
-          "ventaId", "fechaConfirmacion", "ticket"
+          "ventaId",
+          "fechaConfirmacion",
+          "ticket"
         ])
+
         && request.resource.data.ventaId is string
         && request.resource.data.ventaId.size() > 0
+
         && request.resource.data.fechaConfirmacion == request.time
+
         && request.resource.data.ticket is map
-        && request.resource.data.ticket.folio == request.resource.data.ventaId
-        && request.resource.data.ticket.total == resource.data.total
-        && request.resource.data.ticket.metodoPago == "transferencia"
-        && request.resource.data.ticket.productos is list;
+
+        && request.resource.data.ticket.folio
+           == request.resource.data.ventaId
+
+        && request.resource.data.ticket.total
+           == resource.data.total
+
+        && request.resource.data.ticket.productos is list
+
+        // Solo se permite:
+        //
+        // 1. SPEI sin confirmación previa de Stripe.
+        //
+        // 2. Tarjeta con confirmación previa de Stripe.
+        //
+        && (
+          (
+            request.resource.data.ticket.metodoPago
+              == "transferencia"
+            && !resource.data.keys().hasAny([
+              "stripeConfirmacion"
+            ])
+          )
+
+          ||
+
+          (
+            request.resource.data.ticket.metodoPago
+              == "tarjeta"
+            && stripeVerificado()
+          )
+        );
 
       allow delete: if false;
     }
 
+
     // =====================================================
     // TODO LO DEMÁS BLOQUEADO
     // =====================================================
+
     match /{document=**} {
       allow read, write: if false;
     }

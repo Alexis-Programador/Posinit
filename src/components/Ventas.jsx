@@ -1759,6 +1759,38 @@ Imprimir ticket
               );
             }
 
+            if (metodoPago === "tarjeta") {
+              if (!pagoDigitalId) throw new Error("Falta el identificador del pago Stripe.");
+              const pagoRef = doc(db, "pagosPosInit", pagoDigitalId);
+              const pagoSnap = await transaction.get(pagoRef);
+              if (!pagoSnap.exists()) throw new Error("No existe el pago de Stripe.");
+              const pago = pagoSnap.data();
+              const stripe = pago.stripeConfirmacion || {};
+              if (pago.ownerUid !== ownerUid || pago.estado !== "pendiente" ||
+                  Math.round(Number(pago.total) * 100) !== Math.round(totalFinal * 100) ||
+                  stripe.proveedor !== "stripe" || stripe.entorno !== "test" ||
+                  stripe.estado !== "paid" || stripe.moneda !== "mxn" ||
+                  Number(stripe.importeCentavos) !== Math.round(totalFinal * 100) ||
+                  !stripe.sessionId || !stripe.eventId) {
+                throw new Error("Stripe no confirmó este pago o sus datos no coinciden.");
+              }
+              const itemsPago = Array.isArray(pago.productos) ? pago.productos : [];
+              const normalizar = items => items.map(i => `${String(i.id ?? i.productoId)}:${Number(i.cantidad)}:${Math.round(Number(i.precio)*100)}`).sort();
+              if (JSON.stringify(normalizar(itemsPago)) !== JSON.stringify(normalizar(carritoVenta))) {
+                throw new Error("El carrito no coincide con el pago confirmado.");
+              }
+              transaction.update(pagoRef, {
+                estado: "confirmado", ventaId: ventaRef.id,
+                fechaConfirmacion: serverTimestamp(),
+                ticket: {
+                  folio: ventaRef.id, total: totalFinal, metodoPago: "tarjeta",
+                  productos: carritoVenta.map(item => ({ nombre: item.nombre,
+                    cantidad: item.cantidad, precio: item.precio,
+                    subtotal: Number((item.precio * item.cantidad).toFixed(2)) })),
+                },
+              });
+            }
+
             if (metodoPago === "transferencia") {
               if (!pagoDigitalId) throw new Error("Falta el identificador del pago digital.");
               const pagoRef = doc(db, "pagosPosInit", pagoDigitalId);

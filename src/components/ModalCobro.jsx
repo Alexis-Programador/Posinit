@@ -26,15 +26,25 @@ function ModalCobro({ total = 0, procesando = false, onCerrar, onConfirmar, owne
   }, [ownerUid]);
   const [pagoId, setPagoId] = useState("");
   const [estadoPago, setEstadoPago] = useState("");
+  const [stripePagado, setStripePagado] = useState(false);
+  const confirmadoAutomaticoRef = useRef("");
   const [creandoPago, setCreandoPago] = useState(false);
   const [depositoVerificado, setDepositoVerificado] = useState(false);
   const urlPago = pagoId ? `${window.location.origin}${window.location.pathname}?pago=${encodeURIComponent(pagoId)}` : "";
   useEffect(() => {
     if (!pagoId) return undefined;
     return onSnapshot(doc(db, "pagosPosInit", pagoId), snap => {
-      setEstadoPago(snap.exists() ? snap.data().estado : "no_disponible");
+      const datos = snap.exists() ? snap.data() : null;
+      setEstadoPago(datos?.estado || "no_disponible");
+      setStripePagado(Boolean(datos?.stripeConfirmacion?.estado === "paid" && datos?.stripeConfirmacion?.proveedor === "stripe" && datos?.stripeConfirmacion?.entorno === "test" && datos?.stripeConfirmacion?.moneda === "mxn" && Number(datos?.stripeConfirmacion?.importeCentavos) === Math.round(Number(total) * 100)));
     }, err => setError("No se pudo consultar el pago: " + err.message));
   }, [pagoId]);
+  useEffect(() => {
+    if (!pagoId || !stripePagado || procesando || confirmadoAutomaticoRef.current === pagoId) return;
+    confirmadoAutomaticoRef.current = pagoId;
+    onConfirmar?.({ metodoPago: "tarjeta", recibido: Number(total), cambio: 0, pagoDigitalId: pagoId });
+  }, [pagoId, stripePagado, procesando, total, onConfirmar]);
+
   const generarPago = async () => {
     if (creandoPago || pagoId) return;
     if (!ownerUid || !titular.trim() || !banco.trim() || !/^\d{18}$/.test(clabe.trim())) {
@@ -133,7 +143,7 @@ function ModalCobro({ total = 0, procesando = false, onCerrar, onConfirmar, owne
       <section role="dialog" aria-modal="true" aria-label="Cobrar venta" style={{ width: "min(600px,100%)", maxHeight: "min(94dvh, 760px)", overflowY: "auto", background: "#fff", borderRadius: 20, padding: 16, boxShadow: "0 24px 70px rgba(0,0,0,.3)", color: "#0f172a", boxSizing: "border-box" }}>
         <div style={{ display: "flex", justifyContent: "space-between", gap: 16 }}>
           <div><h2 style={{ margin: 0, fontSize: 22 }}>Cobrar venta</h2><p style={{ margin: "5px 0 0", color: "#64748b" }}>Selecciona el método de pago.</p></div>
-          <button type="button" onClick={onCerrar} disabled={procesando} aria-label="Cerrar" style={{ width: 38, height: 38, border: 0, borderRadius: 10, fontWeight: 900, fontSize: 18, cursor: "pointer" }}>×</button>
+          <button type="button" onClick={onCerrar} disabled={procesando || stripePagado} aria-label="Cerrar" style={{ width: 38, height: 38, border: 0, borderRadius: 10, fontWeight: 900, fontSize: 18, cursor: "pointer" }}>×</button>
         </div>
         <div style={{ marginTop: 12, padding: 12, borderRadius: 14, background: "#f1f5f9", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <strong>Total</strong><strong style={{ fontSize: 26 }}>${totalNumero.toFixed(2)}</strong>
@@ -162,7 +172,7 @@ function ModalCobro({ total = 0, procesando = false, onCerrar, onConfirmar, owne
             <QRCodeSVG value={urlPago} size={142} level="M" />
             <p style={{ margin: "6px 0", fontSize: 13 }}><strong>Escanea para pagar ${totalNumero.toFixed(2)}</strong></p>
             <a href={urlPago} target="_blank" rel="noreferrer" style={{ display: "block", fontSize: 12, margin: "5px 0" }}>Abrir enlace de pago</a>
-            <p style={{ margin: "5px 0", fontSize: 13 }}>Estado: <strong>{estadoPago === "pendiente" ? "⏳ Esperando verificación" : estadoPago}</strong></p>
+            <p style={{ margin: "5px 0", fontSize: 13 }}>Estado: <strong>{stripePagado ? "✅ Tarjeta verificada por Stripe; registrando venta..." : estadoPago === "pendiente" ? "⏳ Esperando verificación" : estadoPago}</strong></p>
             <label style={{ display: "block", textAlign: "left", background: "white", padding: 12, borderRadius: 8 }}>
               <input type="checkbox" checked={depositoVerificado} onChange={e => setDepositoVerificado(e.target.checked)} /> He comprobado en mi banca que el dinero llegó a la cuenta y coincide el importe.
             </label>
@@ -171,8 +181,8 @@ function ModalCobro({ total = 0, procesando = false, onCerrar, onConfirmar, owne
         </div>}
         {error && <div role="alert" style={{ marginTop: 14, padding: 11, borderRadius: 9, background: "#fef2f2", color: "#b91c1c", fontWeight: 700 }}>{error}</div>}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1.25fr", gap: 12, marginTop: 12 }}>
-          <button type="button" onClick={onCerrar} disabled={procesando} style={{ minHeight: 44, border: 0, borderRadius: 11, fontWeight: 800, cursor: "pointer" }}>Escape · Cancelar</button>
-          <button type="button" onClick={confirmar} disabled={procesando || creandoPago || (metodoPago === "digital" && (!pagoId || !depositoVerificado || estadoPago !== "pendiente"))} style={{ minHeight: 44, border: 0, borderRadius: 11, background: "#0f172a", color: "#fff", fontWeight: 800, cursor: "pointer" }}>{procesando ? "Procesando..." : metodoPago === "efectivo" ? "Enter · Confirmar venta" : "Confirmar depósito verificado"}</button>
+          <button type="button" onClick={onCerrar} disabled={procesando || stripePagado} style={{ minHeight: 44, border: 0, borderRadius: 11, fontWeight: 800, cursor: "pointer" }}>Escape · Cancelar</button>
+          <button type="button" onClick={confirmar} disabled={procesando || creandoPago || stripePagado || (metodoPago === "digital" && (!pagoId || !depositoVerificado || estadoPago !== "pendiente"))} style={{ minHeight: 44, border: 0, borderRadius: 11, background: "#0f172a", color: "#fff", fontWeight: 800, cursor: "pointer" }}>{procesando ? "Procesando..." : metodoPago === "efectivo" ? "Enter · Confirmar venta" : "Confirmar depósito verificado"}</button>
         </div>
       </section>
     </div>
