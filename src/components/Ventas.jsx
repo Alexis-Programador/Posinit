@@ -3777,10 +3777,44 @@ window.onload = function () {
         </div>
       )}
 
-      {/* TICKET POST-VENTA */}
+      {/* TICKET POST-VENTA: compacto, centrado y sin desplazar la página */}
+      <style>{`
+        .pos-ticket-overlay { box-sizing: border-box; overflow: hidden !important; }
+        .pos-ticket-modal { box-sizing: border-box; display: flex; flex-direction: column;
+          width: min(900px, 100%) !important; max-height: calc(100dvh - 16px);
+          min-height: 0; overflow: hidden; padding: 12px !important; }
+        .pos-ticket-heading { flex: 0 0 auto; margin-bottom: 8px !important; }
+        .pos-ticket-heading > div { font-size: 30px !important; }
+        .pos-ticket-heading h2 { font-size: 21px; margin: 3px 0 !important; }
+        .pos-ticket-heading p { font-size: 13px; }
+        .pos-ticket-body { flex: 1 1 auto; min-height: 0; overflow-y: auto;
+          overscroll-behavior: contain; gap: 12px !important;
+          grid-template-columns: minmax(0, 1fr) minmax(220px, 300px) !important; }
+        .pos-ticket-body > div { min-width: 0; padding: 12px !important; }
+        .pos-ticket-body > div:nth-child(2) { padding: 8px !important; }
+        .pos-ticket-body > div:nth-child(2) h2 { font-size: 19px; margin: 3px 0 !important; }
+        .pos-ticket-body > div:nth-child(2) p { font-size: 13px !important; margin: 4px 0 8px !important; }
+        .pos-ticket-qr { padding: 8px !important; }
+        .pos-ticket-qr svg { display: block; width: min(100%, 165px) !important; height: auto !important; }
+        .pos-ticket-actions { flex: 0 0 auto; gap: 10px !important; margin-top: 8px !important; }
+        .pos-ticket-actions button { min-height: 42px !important; font-size: 14px !important; }
+        @media (max-width: 650px) {
+          .pos-ticket-overlay { padding: 5px !important; }
+          .pos-ticket-modal { max-height: calc(100dvh - 10px); padding: 9px !important; }
+          .pos-ticket-body { grid-template-columns: minmax(0, 1fr) !important; }
+          .pos-ticket-body > div { padding: 9px !important; }
+          .pos-ticket-qr svg { width: min(100%, 135px) !important; }
+          .pos-ticket-actions button { font-size: 12px !important; }
+        }
+        @media (max-height: 540px) and (min-width: 651px) {
+          .pos-ticket-heading p { display: none; }
+          .pos-ticket-qr svg { width: min(100%, 110px) !important; }
+        }
+      `}</style>
 
       {ticketVentaActual && (
         <div
+          className="pos-ticket-overlay"
           style={{
             position:
               "fixed",
@@ -3795,14 +3829,18 @@ window.onload = function () {
               "rgba(15,23,42,.68)",
 
             overflowY:
-              "auto",
+              "hidden",
 
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
             padding:
-              "24px",
+              "12px",
           }}
         >
 
           <section
+            className="pos-ticket-modal"
             style={{
               width:
                 "min(980px, 100%)",
@@ -3820,17 +3858,18 @@ window.onload = function () {
                 "0 28px 80px rgba(0,0,0,.28)",
 
               padding:
-                "28px",
+                "18px",
             }}
           >
 
             <div
+              className="pos-ticket-heading"
               style={{
                 textAlign:
                   "center",
 
                 marginBottom:
-                  "24px",
+                  "12px",
               }}
             >
 
@@ -3866,6 +3905,7 @@ window.onload = function () {
             </div>
 
             <div
+              className="pos-ticket-body"
               style={{
                 display:
                   "grid",
@@ -3874,7 +3914,7 @@ window.onload = function () {
                   "minmax(0, 1fr) minmax(300px, 390px)",
 
                 gap:
-                  "32px",
+                  "16px",
 
                 alignItems:
                   "start",
@@ -4195,12 +4235,13 @@ window.onload = function () {
                 </p>
 
                 <div
+                  className="pos-ticket-qr"
                   style={{
                     background:
                       "#fff",
 
                     padding:
-                      "18px",
+                      "12px",
 
                     borderRadius:
                       "18px",
@@ -4218,7 +4259,7 @@ window.onload = function () {
                       urlQrTicket
                     }
                     size={
-                      290
+                      210
                     }
                     level="L"
                     includeMargin
@@ -4245,6 +4286,7 @@ window.onload = function () {
             </div>
 
             <div
+              className="pos-ticket-actions"
               style={{
                 display:
                   "grid",
@@ -4256,7 +4298,7 @@ window.onload = function () {
                   "14px",
 
                 marginTop:
-                  "26px",
+                  "12px",
               }}
             >
 

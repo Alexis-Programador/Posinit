@@ -112,6 +112,68 @@ export default function PagoPublico({ id }) {
     return () => { cancelado = true; };
   }, [id]);
 
+  // Descargar ticket como PNG sin abrir la ventana de impresión del celular.
+  const descargarTicket = () => {
+    if (!pago?.ticket) return;
+    const ticket = pago.ticket;
+    const productos = Array.isArray(ticket.productos) ? ticket.productos : [];
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    const ancho = 760;
+    const margen = 42;
+    const maxTexto = ancho - margen * 2;
+    ctx.font = "24px Arial";
+    const partir = (texto) => {
+      const palabras = String(texto).split(/\s+/);
+      const lineas = [];
+      let linea = "";
+      for (const palabra of palabras) {
+        const siguiente = linea ? `${linea} ${palabra}` : palabra;
+        if (ctx.measureText(siguiente).width > maxTexto && linea) {
+          lineas.push(linea); linea = palabra;
+        } else linea = siguiente;
+      }
+      if (linea) lineas.push(linea);
+      return lineas;
+    };
+    const filas = productos.flatMap(item => [
+      ...partir(`${Number(item.cantidad || 0)} x ${item.nombre || "Producto"}`),
+      `Subtotal: ${moneda(item.subtotal)}`,
+    ]);
+    canvas.width = ancho;
+    canvas.height = Math.max(460, 325 + filas.length * 36);
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = "#10213c";
+    ctx.textAlign = "center";
+    ctx.font = "bold 38px Arial";
+    ctx.fillText("POS Init", ancho / 2, 65);
+    ctx.font = "22px Arial";
+    ctx.fillText("Ticket digital", ancho / 2, 105);
+    ctx.textAlign = "left";
+    ctx.font = "20px Arial";
+    ctx.fillText(`Folio: ${String(ticket.folio || "").slice(0, 48)}`, margen, 155);
+    ctx.strokeStyle = "#cbd5e1";
+    ctx.beginPath(); ctx.moveTo(margen, 180); ctx.lineTo(ancho - margen, 180); ctx.stroke();
+    let y = 220;
+    ctx.font = "24px Arial";
+    for (const fila of filas) { ctx.fillText(fila, margen, y); y += 36; }
+    y += 18;
+    ctx.beginPath(); ctx.moveTo(margen, y); ctx.lineTo(ancho - margen, y); ctx.stroke();
+    y += 48;
+    ctx.font = "bold 30px Arial";
+    ctx.fillText(`TOTAL: ${moneda(ticket.total)}`, margen, y);
+    ctx.font = "21px Arial";
+    ctx.fillText(`Método: ${ticket.metodoPago || "Pago confirmado"}`, margen, y + 42);
+    const enlace = document.createElement("a");
+    enlace.download = `POS-Init-Ticket-${String(ticket.folio || "digital").replace(/[^a-zA-Z0-9_-]/g, "")}.png`;
+    enlace.href = canvas.toDataURL("image/png");
+    document.body.appendChild(enlace);
+    enlace.click();
+    enlace.remove();
+  };
+
   const confirmado = pago?.estado === "confirmado" && !!pago.ticket;
   const pendiente = pago?.estado === "pendiente";
   const totalValido = Number.isFinite(Number(pago?.total)) && Number(pago?.total) > 0;
@@ -142,7 +204,7 @@ export default function PagoPublico({ id }) {
             {(pago.ticket.productos || []).map((item, i) => <div key={i} style={{ display: "flex", justifyContent: "space-between", gap: 12, padding: "10px 0", borderBottom: "1px solid #e2e8f0" }}><span>{item.cantidad} × {item.nombre}</span><strong>{moneda(item.subtotal)}</strong></div>)}
             <h3 style={{ textAlign: "right" }}>Total: {moneda(pago.ticket.total)}</h3>
             <p style={texto}>Método: {pago.ticket.metodoPago || pago.metodoPago || "Pago confirmado"}</p>
-            <button type="button" onClick={() => window.print()} style={{ ...btn, background: "#102c5c", color: "white" }}>🧾 Imprimir / guardar ticket</button>
+            <button type="button" onClick={descargarTicket} style={{ ...btn, background: "#102c5c", color: "white" }}>⬇️ Descargar ticket como imagen</button>
           </div> : pendiente ? <div style={{ marginTop: 20 }}>
             <h2 style={{ fontSize: 19, margin: "0 0 12px" }}>Elige cómo quieres pagar</h2>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 9 }}>
