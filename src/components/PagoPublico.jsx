@@ -6,6 +6,27 @@ const moneda = (n) => Number(n || 0).toLocaleString("es-MX", { style: "currency"
 const btn = { width: "100%", border: 0, borderRadius: 14, padding: "15px 16px", fontSize: 15, fontWeight: 750, cursor: "pointer" };
 const card = { background: "#f5f8ff", border: "1px solid #e0e9fa", borderRadius: 16, padding: 16 };
 const texto = { color: "#64748b", fontSize: 13, lineHeight: 1.6 };
+const fechaTicket = (pago) => {
+  const valor = pago?.ticket?.fechaHora ?? pago?.fechaConfirmacion ?? pago?.ticket?.fechaServidor;
+  if (!valor) return "Fecha y hora no disponibles";
+  const fecha = typeof valor?.toDate === "function" ? valor.toDate()
+    : typeof valor?.seconds === "number" ? new Date(valor.seconds * 1000)
+    : new Date(valor);
+  return Number.isNaN(fecha.getTime()) ? "Fecha y hora no disponibles"
+    : fecha.toLocaleString("es-MX", { dateStyle: "long", timeStyle: "short" });
+};
+
+// Mostrar solo datos no sensibles, proporcionados por Stripe mediante el servidor.
+// La marca de la tarjeta no identifica necesariamente el banco emisor.
+const detalleTarjeta = (pago) => {
+  const tarjeta = pago?.ticket?.tarjeta ?? pago?.stripeConfirmacion?.tarjeta;
+  if (!tarjeta || typeof tarjeta !== "object") return "";
+  const marca = typeof tarjeta.marca === "string" ? tarjeta.marca.replace(/[^a-zA-Z ]/g, "").slice(0, 30) : "Tarjeta";
+  const ultimos4 = typeof tarjeta.ultimos4 === "string" && /^[0-9]{4}$/.test(tarjeta.ultimos4)
+    ? tarjeta.ultimos4 : "";
+  return ultimos4 ? `${marca || "Tarjeta"} •••• ${ultimos4}` : "";
+};
+
 
 // Stripe Checkout en modo de pruebas. No habilitar para cobros reales.
 const API_DEMO = "https://pos-init-pay-api.alexis52gamer.workers.dev";
@@ -142,7 +163,7 @@ export default function PagoPublico({ id }) {
       `Subtotal: ${moneda(item.subtotal)}`,
     ]);
     canvas.width = ancho;
-    canvas.height = Math.max(460, 325 + filas.length * 36);
+    canvas.height = Math.max(560, 450 + filas.length * 36);
     ctx.fillStyle = "#ffffff";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     ctx.fillStyle = "#10213c";
@@ -154,9 +175,11 @@ export default function PagoPublico({ id }) {
     ctx.textAlign = "left";
     ctx.font = "20px Arial";
     ctx.fillText(`Folio: ${String(ticket.folio || "").slice(0, 48)}`, margen, 155);
+    ctx.font = "19px Arial";
+    ctx.fillText(`Fecha: ${fechaTicket(pago)}`, margen, 190);
     ctx.strokeStyle = "#cbd5e1";
-    ctx.beginPath(); ctx.moveTo(margen, 180); ctx.lineTo(ancho - margen, 180); ctx.stroke();
-    let y = 220;
+    ctx.beginPath(); ctx.moveTo(margen, 210); ctx.lineTo(ancho - margen, 210); ctx.stroke();
+    let y = 250;
     ctx.font = "24px Arial";
     for (const fila of filas) { ctx.fillText(fila, margen, y); y += 36; }
     y += 18;
@@ -166,6 +189,8 @@ export default function PagoPublico({ id }) {
     ctx.fillText(`TOTAL: ${moneda(ticket.total)}`, margen, y);
     ctx.font = "21px Arial";
     ctx.fillText(`Método: ${ticket.metodoPago || "Pago confirmado"}`, margen, y + 42);
+    const tarjeta = detalleTarjeta(pago);
+    if (tarjeta) ctx.fillText(`Tarjeta: ${tarjeta}`, margen, y + 78);
     const enlace = document.createElement("a");
     enlace.download = `POS-Init-Ticket-${String(ticket.folio || "digital").replace(/[^a-zA-Z0-9_-]/g, "")}.png`;
     enlace.href = canvas.toDataURL("image/png");
@@ -201,9 +226,11 @@ export default function PagoPublico({ id }) {
             <p role="status" style={{ padding: 14, borderRadius: 12, background: "#dcfce7", color: "#166534", fontWeight: 750 }}>✅ Pago confirmado. ¡Gracias por tu compra!</p>
             <h2 style={{ fontSize: 20 }}>🧾 Tu ticket digital</h2>
             <p style={texto}>Folio: {pago.ticket.folio}</p>
+            <p style={texto}>📅 Fecha y hora: {fechaTicket(pago)}</p>
             {(pago.ticket.productos || []).map((item, i) => <div key={i} style={{ display: "flex", justifyContent: "space-between", gap: 12, padding: "10px 0", borderBottom: "1px solid #e2e8f0" }}><span>{item.cantidad} × {item.nombre}</span><strong>{moneda(item.subtotal)}</strong></div>)}
             <h3 style={{ textAlign: "right" }}>Total: {moneda(pago.ticket.total)}</h3>
             <p style={texto}>Método: {pago.ticket.metodoPago || pago.metodoPago || "Pago confirmado"}</p>
+            {detalleTarjeta(pago) && <p style={texto}>💳 {detalleTarjeta(pago)}</p>}
             <button type="button" onClick={descargarTicket} style={{ ...btn, background: "#102c5c", color: "white" }}>⬇️ Descargar ticket como imagen</button>
           </div> : pendiente ? <div style={{ marginTop: 20 }}>
             <h2 style={{ fontSize: 19, margin: "0 0 12px" }}>Elige cómo quieres pagar</h2>
