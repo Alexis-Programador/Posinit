@@ -2,10 +2,13 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { collection, doc, getDoc, onSnapshot, serverTimestamp, setDoc } from "firebase/firestore";
 import { db } from "../firebase/firebaseConfig";
 import { QRCodeSVG } from "qrcode.react";
+import CobroMixtoEnProceso from "./CobroMixtoEnProceso";
 
 // POS Init: efectivo funcional; pagos digitales requieren verificación externa.
 function ModalCobro({ total = 0, procesando = false, onCerrar, onConfirmar, ownerUid, productos = [] }) {
   const [metodoPago, setMetodoPago] = useState("efectivo");
+  const [mostrarDemoMixto, setMostrarDemoMixto] = useState(false);
+  const [advertenciaMixto, setAdvertenciaMixto] = useState("");
   const [recibidoTexto, setRecibidoTexto] = useState("");
   const [error, setError] = useState("");
   const inputRef = useRef(null);
@@ -138,6 +141,22 @@ function ModalCobro({ total = 0, procesando = false, onCerrar, onConfirmar, owne
     fontWeight: 800, fontSize: 15, cursor: "pointer", color: "#0f172a",
   });
 
+  if (mostrarDemoMixto) {
+    return (
+      <CobroMixtoEnProceso
+        total={totalNumero}
+        productos={productos}
+        ownerUid={ownerUid}
+        banco={banco}
+        titular={titular}
+        clabe={clabe}
+        procesando={procesando}
+        onConfirmar={onConfirmar}
+        onCerrar={() => setMostrarDemoMixto(false)}
+      />
+    );
+  }
+
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 1000, background: "rgba(15,23,42,.55)", display: "grid", placeItems: "center", padding: 18 }}>
       <section role="dialog" aria-modal="true" aria-label="Cobrar venta" style={{ width: "min(600px,100%)", maxHeight: "min(94dvh, 760px)", overflowY: "auto", background: "#fff", borderRadius: 20, padding: 16, boxShadow: "0 24px 70px rgba(0,0,0,.3)", color: "#0f172a", boxSizing: "border-box" }}>
@@ -152,6 +171,14 @@ function ModalCobro({ total = 0, procesando = false, onCerrar, onConfirmar, owne
           <button type="button" onClick={() => { setMetodoPago("efectivo"); setError(""); }} style={estiloBoton(metodoPago === "efectivo")}>💵<br />Efectivo</button>
           <button type="button" onClick={() => { setMetodoPago("digital"); setError(""); }} style={estiloBoton(metodoPago === "digital")}>📱<br />POS Init Pay</button>
         </div>
+        <button type="button" onClick={() => { setMostrarDemoMixto(true); setAdvertenciaMixto(""); setError(""); }}
+          disabled={procesando || stripePagado || Boolean(pagoId)}
+          style={{ marginTop: 10, width: "100%", padding: 12, borderRadius: 12, border: "1px solid #93c5fd", background: "#eff6ff", color: "#1d4ed8", fontWeight: 800, cursor: "pointer" }}>
+          💵 + 💳 Cobro combinado (integración en pruebas)
+        </button>
+        <p style={{ margin: "6px 0 0", fontSize: 12, color: "#64748b" }}>
+          Prepara pagos individuales y observa Stripe. El registro final requiere actualizar Ventas.jsx.
+        </p>
         {metodoPago === "efectivo" ? <>
           <label htmlFor="dineroRecibido" style={{ display: "block", marginTop: 22, marginBottom: 8, fontWeight: 800 }}>Dinero recibido</label>
           <input ref={inputRef} id="dineroRecibido" type="number" min="0" step="1" value={recibidoTexto} onChange={(e) => { setRecibidoTexto(e.target.value); setError(""); }} autoFocus style={{ width: "100%", boxSizing: "border-box", padding: 14, border: "2px solid #2563eb", borderRadius: 11, fontSize: 20 }} />
@@ -179,6 +206,7 @@ function ModalCobro({ total = 0, procesando = false, onCerrar, onConfirmar, owne
             <p style={{ fontSize: 12 }}>No confirmes solo por una captura de pantalla del cliente.</p>
           </div>}
         </div>}
+        {advertenciaMixto && <div role="status" style={{ marginTop: 12, padding: 10, borderRadius: 9, background: "#fffbeb", color: "#92400e" }}>{advertenciaMixto}</div>}
         {error && <div role="alert" style={{ marginTop: 14, padding: 11, borderRadius: 9, background: "#fef2f2", color: "#b91c1c", fontWeight: 700 }}>{error}</div>}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1.25fr", gap: 12, marginTop: 12 }}>
           <button type="button" onClick={onCerrar} disabled={procesando || stripePagado} style={{ minHeight: 44, border: 0, borderRadius: 11, fontWeight: 800, cursor: "pointer" }}>Escape · Cancelar</button>

@@ -12,6 +12,44 @@ import {
 
 import { db } from "../firebase/firebaseConfig";
 
+// Distribuye ventas mixtas por método sin contar el total dos veces.
+// Solo deben existir ventas mixtas después de confirmar todos sus pagos.
+function importesPorMetodo(venta) {
+  const totalCentavos = Math.round(Number(venta?.total || 0) * 100);
+  const metodo = String(venta?.metodoPago || "").toLowerCase();
+
+  if (metodo === "mixto") {
+    if (!Array.isArray(venta.pagos) || venta.pagos.length === 0) {
+      return { efectivo: 0, tarjeta: 0, otros: totalCentavos / 100 };
+    }
+    let efectivo = 0;
+    let tarjeta = 0;
+    let otros = 0;
+    for (const pago of venta.pagos) {
+      const importe = Number(pago?.importe);
+      if (!Number.isFinite(importe) || importe < 0) {
+        return { efectivo: 0, tarjeta: 0, otros: totalCentavos / 100 };
+      }
+      const centavos = Math.round(importe * 100);
+      const tipo = String(pago?.tipo || "").toLowerCase();
+      if (tipo === "efectivo") efectivo += centavos;
+      else if (tipo === "tarjeta") tarjeta += centavos;
+      else otros += centavos;
+    }
+    if (efectivo + tarjeta + otros !== totalCentavos) {
+      return { efectivo: 0, tarjeta: 0, otros: totalCentavos / 100 };
+    }
+    return {
+      efectivo: efectivo / 100,
+      tarjeta: tarjeta / 100,
+      otros: otros / 100,
+    };
+  }
+  if (metodo === "efectivo") return { efectivo: totalCentavos / 100, tarjeta: 0, otros: 0 };
+  if (metodo === "tarjeta") return { efectivo: 0, tarjeta: totalCentavos / 100, otros: 0 };
+  return { efectivo: 0, tarjeta: 0, otros: totalCentavos / 100 };
+}
+
 function CorteCaja({
   ownerUid,
   usuario,
@@ -126,18 +164,10 @@ function CorteCaja({
     let otros = 0;
 
     ventas.forEach((venta) => {
-      const total = Number(venta.total ?? 0);
-      const metodo = String(
-        venta.metodoPago ?? ""
-      ).toLowerCase();
-
-      if (metodo === "efectivo") {
-        efectivo += total;
-      } else if (metodo === "tarjeta") {
-        tarjeta += total;
-      } else {
-        otros += total;
-      }
+      const importes = importesPorMetodo(venta);
+      efectivo += importes.efectivo;
+      tarjeta += importes.tarjeta;
+      otros += importes.otros;
     });
 
     return {

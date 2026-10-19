@@ -20,6 +20,7 @@ import {
 } from "../firebase/firebaseConfig";
 
 import ModalCobro from "./ModalCobro";
+import { recuperarPlanMixto, limpiarPlanMixto } from "./cobroMixtoService";
 import ConfiguracionPosInitPay from "./ConfiguracionPosInitPay";
 import { getAuth } from "firebase/auth";
 import CorteCaja from "./CorteCaja";
@@ -40,6 +41,22 @@ const estiloOpcionMenu = {
   gap: "4px",
   fontSize: "15px",
 };
+
+// =========================================================
+// EFECTIVO REAL DE VENTAS NORMALES Y COMBINADAS
+// =========================================================
+function obtenerEfectivoDeVenta(venta) {
+  if (!venta) return 0;
+  if (venta.metodoPago === "mixto" && Array.isArray(venta.pagos)) {
+    const suma = venta.pagos
+      .filter(p => p.tipo === "efectivo")
+      .reduce((acc, p) => acc + Number(p.importe || 0), 0);
+    return Math.round(suma * 100) / 100;
+  }
+  return String(venta.metodoPago || "").toLowerCase() === "efectivo"
+    ? Number(venta.total || 0)
+    : 0;
+}
 
 function Ventas({
   ownerUid,
@@ -287,36 +304,9 @@ function Ventas({
             0
           );
 
-      const ventasEfectivo =
-        ventasCaja
-          .filter(
-            (venta) =>
-              esDelCajero(
-                venta
-              ) &&
-              Number(
-                venta.fechaHora ??
-                  0
-              ) >
-                ultimoCorte &&
-              String(
-                venta.metodoPago ??
-                  ""
-              ).toLowerCase() ===
-                "efectivo"
-          )
-          .reduce(
-            (
-              total,
-              venta
-            ) =>
-              total +
-              Number(
-                venta.total ??
-                  0
-              ),
-            0
-          );
+      const ventasEfectivo = ventasCaja
+        .filter(venta => esDelCajero(venta) && Number(venta.fechaHora ?? 0) > ultimoCorte)
+        .reduce((total, venta) => total + obtenerEfectivoDeVenta(venta), 0);
 
       const retiros =
         retirosCaja
@@ -520,14 +510,9 @@ function Ventas({
           );
 
         const totalVentasEfectivo = ventasSnap.docs
-          .map((d) => d.data())
-          .filter(
-            (venta) =>
-              esDelCajero(venta) &&
-              Number(venta.fechaHora ?? 0) > ultimoCorte &&
-              String(venta.metodoPago ?? "").toLowerCase() === "efectivo"
-          )
-          .reduce((total, venta) => total + Number(venta.total ?? 0), 0);
+          .map(d => d.data())
+          .filter(venta => esDelCajero(venta) && Number(venta.fechaHora ?? 0) > ultimoCorte)
+          .reduce((total, venta) => total + obtenerEfectivoDeVenta(venta), 0);
 
         const totalRetiros = retirosSnap.docs
           .map((d) => d.data())
@@ -1651,12 +1636,28 @@ Imprimir ticket
       recibido,
       cambio,
       pagoDigitalId,
+      cobroMixtoId,
+      pagos: pagosMixtos,
     }) => {
       if (
         procesandoVenta ||
         carrito.length ===
           0
       ) {
+        return;
+      }
+
+      if (!["efectivo", "tarjeta", "transferencia", "mixto"].includes(metodoPago)) {
+        setError("Método de pago no permitido.");
+        return;
+      }
+      // El efectivo de un cobro mixto se valida contra el plan persistido.
+      if (metodoPago === "mixto" && (!cobroMixtoId || !Array.isArray(pagosMixtos))) {
+        setError("Falta el plan de cobro combinado.");
+        return;
+      }
+      if (metodoPago !== "mixto" && (!Number.isFinite(Number(recibido)) || !Number.isFinite(Number(cambio)))) {
+        setError("Los importes del cobro no son válidos.");
         return;
       }
 
@@ -1667,6 +1668,8 @@ Imprimir ticket
 
         setError("");
         setMensajeVenta("");
+
+        if (metodoPago === "mixto") { recibido = Number(totalVenta.toFixed(2)); cambio = 0; }
 
         const carritoVenta =
           carrito.map(
@@ -1682,15 +1685,38 @@ Imprimir ticket
             )
           );
 
-        const ventaRef =
-          doc(
-            collection(
-              db,
-              "usuarios",
-              ownerUid,
-              "ventas"
-            )
-          );
+        let planMixto = null;
+        let desgloseMixto = null;
+        if (metodoPago === "mixto") {
+          planMixto = recuperarPlanMixto(ownerUid);
+          if (!planMixto || planMixto.id !== cobroMixtoId) {
+            throw new Error("No se encontró el cobro combinado pendiente. No se realizará otra venta.");
+          }
+          const cent = n => Math.round(Number(n) * 100);
+          if (planMixto.totalCentavos !== cent(totalFinal) ||
+              !Array.isArray(planMixto.pagos) || planMixto.pagos.length < 2 ||
+              !planMixto.pagos.some(p => p.tipo === "tarjeta") ||
+              planMixto.pagos.reduce((n,p) => n + p.importeCentavos, 0) !== planMixto.totalCentavos ||
+              planMixto.pagos.some(p => !Number.isSafeInteger(p.importeCentavos) || p.importeCentavos <= 0 ||
+                (p.tipo === "tarjeta" && (p.importeCentavos < 1000 || !p.pagoId)))) {
+            throw new Error("La distribución de pagos no es válida.");
+          }
+          const normalizar = items => items.map(i =>
+            `${String(i.id ?? i.productoId)}:${Number(i.cantidad)}:${cent(i.precio)}`).sort();
+          if (JSON.stringify(normalizar(planMixto.productos)) !== JSON.stringify(normalizar(carritoVenta))) {
+            throw new Error("El carrito cambió desde que se prepararon los pagos. Conserva el cobro pendiente para revisión.");
+          }
+          // La UI no decide qué pagos fueron verificados: se leen nuevamente dentro de la transacción.
+          desgloseMixto = planMixto.pagos.map(p => ({
+            tipo: p.tipo, importe: p.importeCentavos / 100,
+            ...(p.tipo === "tarjeta" ? { pagoId: p.pagoId } : {}),
+          }));
+        }
+
+        // Identificador estable: reintentos no crean otra venta del mismo cobro.
+        const ventaRef = metodoPago === "mixto"
+          ? doc(db, "usuarios", ownerUid, "ventas", `mixto_${cobroMixtoId}`)
+          : doc(collection(db, "usuarios", ownerUid, "ventas"));
 
         await runTransaction(
           db,
@@ -1698,6 +1724,12 @@ Imprimir ticket
           async (
             transaction
           ) => {
+            if (metodoPago === "mixto") {
+              const anterior = await transaction.get(ventaRef);
+              if (anterior.exists()) {
+                throw new Error("Este cobro combinado ya tiene una venta registrada. No se duplicó la venta.");
+              }
+            }
             const inventarios =
               [];
 
@@ -1759,12 +1791,62 @@ Imprimir ticket
               );
             }
 
+            if (metodoPago === "mixto") {
+              // Firestore exige todas las lecturas antes de cualquier escritura.
+              const comprobantes = [];
+              const tarjetas = planMixto.pagos.filter(p => p.tipo === "tarjeta");
+              const ids = tarjetas.map(p => p.pagoId);
+              if (new Set(ids).size !== ids.length) {
+                throw new Error("Hay tarjetas con el mismo identificador de pago.");
+              }
+              for (const parte of tarjetas) {
+                const ref = doc(db, "pagosPosInit", parte.pagoId);
+                const snap = await transaction.get(ref);
+                if (!snap.exists()) throw new Error("Falta un pago de Stripe.");
+                const pago = snap.data();
+                const stripe = pago.stripeConfirmacion || {};
+                const cent = n => Math.round(Number(n) * 100);
+                const normalizar = items => (items || []).map(i =>
+                  `${String(i.id ?? i.productoId)}:${Number(i.cantidad)}:${cent(i.precio)}`).sort();
+                if (pago.ownerUid !== ownerUid || pago.cobroMixtoId !== cobroMixtoId ||
+                    cent(pago.totalVenta) !== cent(totalFinal) ||
+                    cent(pago.total) !== parte.importeCentavos || pago.estado !== "pendiente" ||
+                    stripe.proveedor !== "stripe" || stripe.entorno !== "test" ||
+                    stripe.estado !== "paid" || stripe.moneda !== "mxn" ||
+                    Number(stripe.importeCentavos) !== parte.importeCentavos ||
+                    !stripe.sessionId || !stripe.eventId ||
+                    JSON.stringify(normalizar(pago.productos)) !== JSON.stringify(normalizar(carritoVenta))) {
+                  throw new Error("Una tarjeta todavía no está confirmada por Stripe o no corresponde a esta venta.");
+                }
+                comprobantes.push({ ref, parte });
+              }
+              for (const { ref, parte } of comprobantes) {
+                transaction.update(ref, {
+                  estado: "confirmado", ventaId: ventaRef.id,
+                  fechaConfirmacion: serverTimestamp(),
+                  ticket: {
+                    folio: ventaRef.id, total: totalFinal, metodoPago: "mixto",
+                    cobroMixtoId,
+                    productos: carritoVenta.map(item => ({
+                      nombre: item.nombre, cantidad: item.cantidad,
+                      precio: item.precio,
+                      subtotal: Number((item.precio * item.cantidad).toFixed(2)),
+                    })),
+                  },
+                });
+              }
+            }
+
             if (metodoPago === "tarjeta") {
               if (!pagoDigitalId) throw new Error("Falta el identificador del pago Stripe.");
               const pagoRef = doc(db, "pagosPosInit", pagoDigitalId);
               const pagoSnap = await transaction.get(pagoRef);
               if (!pagoSnap.exists()) throw new Error("No existe el pago de Stripe.");
               const pago = pagoSnap.data();
+              // Un pago parcial jamás debe consumirse como pago total normal.
+              if (pago.cobroMixtoId || pago.totalVenta || pago.tipoCobro === "mixto") {
+                throw new Error("Este pago pertenece a un cobro combinado y no puede usarse como pago único.");
+              }
               const stripe = pago.stripeConfirmacion || {};
               if (pago.ownerUid !== ownerUid || pago.estado !== "pendiente" ||
                   Math.round(Number(pago.total) * 100) !== Math.round(totalFinal * 100) ||
@@ -1900,6 +1982,7 @@ Imprimir ticket
                   totalFinal,
 
                 metodoPago,
+                ...(metodoPago === "mixto" ? { pagos: desgloseMixto, cobroMixtoId } : {}),
 
                 recibido:
                   Number(
@@ -1994,6 +2077,7 @@ Imprimir ticket
               totalFinal,
 
             metodoPago,
+            ...(metodoPago === "mixto" ? { pagos: desgloseMixto, cobroMixtoId } : {}),
 
             recibido:
               Number(
@@ -2011,6 +2095,10 @@ Imprimir ticket
           }
         );
 
+        if (metodoPago === "mixto") {
+          try { limpiarPlanMixto(ownerUid, cobroMixtoId); }
+          catch (e) { console.warn("Venta confirmada; no se pudo limpiar el plan local:", e); }
+        }
         setCarrito([]);
 
         // Una venta nueva significa que el corte anterior
@@ -2397,6 +2485,8 @@ window.onload = function () {
         "Enter"
       ) {
         event.preventDefault();
+        // Los tickets mixtos requieren impresión manual explícita.
+        if (ticketVentaActual?.metodoPago === "mixto") return;
 
         imprimirTicketVentaActual();
 

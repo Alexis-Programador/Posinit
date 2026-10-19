@@ -379,7 +379,9 @@ service cloud.firestore {
           "titular",
           "clabe",
           "productos",
-          "creadoEn"
+          "creadoEn",
+          "cobroMixtoId",
+          "totalVenta"
         ])
         && request.resource.data.keys().hasAll([
           "ownerUid",
@@ -395,6 +397,20 @@ service cloud.firestore {
         && request.resource.data.estado == "pendiente"
         && request.resource.data.total is number
         && request.resource.data.total > 0
+        // Pago individual de un cobro combinado: ambos campos
+        // deben estar presentes o ambos ausentes.
+        && (
+          (
+            !request.resource.data.keys().hasAny(["cobroMixtoId", "totalVenta"])
+          ) || (
+            request.resource.data.keys().hasAll(["cobroMixtoId", "totalVenta"])
+            && request.resource.data.cobroMixtoId is string
+            && request.resource.data.cobroMixtoId.matches('^[A-Za-z0-9_-]{15,80}$')
+            && request.resource.data.totalVenta is number
+            && request.resource.data.totalVenta >= request.resource.data.total
+            && request.resource.data.total >= 10
+          )
+        )
         && request.resource.data.banco is string
         && request.resource.data.titular is string
         && request.resource.data.clabe is string
@@ -439,8 +455,17 @@ service cloud.firestore {
         && request.resource.data.ticket.folio
            == request.resource.data.ventaId
 
-        && request.resource.data.ticket.total
-           == resource.data.total
+        && (
+          (
+            !resource.data.keys().hasAny(["cobroMixtoId"])
+            && request.resource.data.ticket.total == resource.data.total
+          ) || (
+            resource.data.keys().hasAll(["cobroMixtoId", "totalVenta"])
+            && request.resource.data.ticket.metodoPago == "mixto"
+            && request.resource.data.ticket.total == resource.data.totalVenta
+            && request.resource.data.ticket.cobroMixtoId == resource.data.cobroMixtoId
+          )
+        )
 
         && request.resource.data.ticket.productos is list
 
@@ -462,8 +487,9 @@ service cloud.firestore {
           ||
 
           (
-            request.resource.data.ticket.metodoPago
-              == "tarjeta"
+            (request.resource.data.ticket.metodoPago == "tarjeta"
+              || (request.resource.data.ticket.metodoPago == "mixto"
+                && resource.data.keys().hasAll(["cobroMixtoId", "totalVenta"])))
             && stripeVerificado()
           )
         );
