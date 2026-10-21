@@ -126,6 +126,32 @@ function ModalCobro({ total = 0, procesando = false, onCerrar, onConfirmar, owne
         if (!procesando) onCerrar?.();
         return;
       }
+      // Flechas: arriba/abajo ajustan el efectivo en pesos completos.
+      // Izquierda/derecha recorren Efectivo → SPEI → Tarjeta QR.
+      if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+        if (procesando || creandoPago) return;
+        event.preventDefault();
+        const opciones = ["efectivo", "digital", "tarjeta"];
+        const posicion = opciones.indexOf(metodoPago);
+        const siguiente = event.key === "ArrowRight"
+          ? (posicion + 1) % opciones.length
+          : (posicion - 1 + opciones.length) % opciones.length;
+        setMetodoPago(opciones[siguiente]);
+        setError("");
+        return;
+      }
+      if ((event.key === "ArrowUp" || event.key === "ArrowDown") && metodoPago === "efectivo") {
+        if (procesando) return;
+        event.preventDefault();
+        const delta = event.key === "ArrowUp" ? 100 : -100;
+        setRecibidoTexto((anterior) => {
+          const centavosActuales = Math.round(Number(anterior || 0) * 100);
+          const base = Number.isSafeInteger(centavosActuales) ? centavosActuales : 0;
+          return (Math.max(0, base + delta) / 100).toFixed(2);
+        });
+        setError("");
+        return;
+      }
       if (event.key === "Backspace") {
         // El navegador borra normalmente dentro del campo; nunca cierra el modal.
         if (document.activeElement !== inputRef.current && !["INPUT", "TEXTAREA"].includes(document.activeElement?.tagName) && !document.activeElement?.isContentEditable) {
@@ -192,7 +218,7 @@ function ModalCobro({ total = 0, procesando = false, onCerrar, onConfirmar, owne
           <label htmlFor="dineroRecibido" style={{ display: "block", marginTop: 22, marginBottom: 8, fontWeight: 800 }}>Dinero recibido</label>
           <input ref={inputRef} id="dineroRecibido" type="number" min="0" step="1" value={recibidoTexto} onChange={(e) => { setRecibidoTexto(e.target.value); setError(""); }} autoFocus style={{ width: "100%", boxSizing: "border-box", padding: 14, border: "2px solid #2563eb", borderRadius: 11, fontSize: 20 }} />
           <div style={{ display: "flex", justifyContent: "space-between", marginTop: 22, paddingBottom: 14, borderBottom: "1px solid #cbd5e1", fontSize: 18 }}><strong>Cambio</strong><strong style={{ color: "#15803d", fontSize: 22 }}>${cambio.toFixed(2)}</strong></div>
-          <p style={{ color: "#64748b", fontSize: 13 }}>↑ y ↓ aumentan o disminuyen $1. Backspace borra; Escape cancela.</p>
+          <p style={{ color: "#64748b", fontSize: 13 }}>↑ ↓ ajustan $1. ← → cambian entre Efectivo, SPEI y Tarjeta QR. Backspace borra; Escape cancela.</p>
         </> : <div style={{ marginTop: 12, padding: 12, background: "#eff6ff", borderRadius: 12, lineHeight: 1.5 }}>
           <strong>{metodoPago === "tarjeta" ? "💳 POS Init Pay — Tarjeta con QR" : "🏦 POS Init Pay — Transferencia SPEI"}</strong>
           {!pagoId ? <>
