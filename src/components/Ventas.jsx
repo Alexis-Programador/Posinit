@@ -3488,21 +3488,6 @@ window.onload = function () {
                 </strong>
               </button>
 
-              {esPropietario && (
-                <button
-                  type="button"
-                  style={estiloOpcionMenu}
-                  onClick={() => {
-                    setMostrarMenu(false);
-                    setMostrarConfigPay(true);
-                    setError("");
-                  }}
-                >
-                  <strong>⚙️ Configuración · POS Init Pay</strong>
-                  <span>Administrar la cuenta bancaria y métodos de cobro.</span>
-                </button>
-              )}
-
               <button type="button" style={estiloOpcionMenu}
                 onClick={() => {
                   ponerCajaEnEspera();
