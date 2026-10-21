@@ -4,6 +4,8 @@ import {
   useState,
 } from "react";
 
+import { QRCodeSVG } from "qrcode.react";
+
 import {
   collection,
   getDocs,
@@ -297,6 +299,49 @@ function HistorialVentas({
     );
 
   // =========================================================
+  // Copia del comprobante: el token contiene datos de la venta y no es una firma digital.
+  const crearEnlaceTicket = (venta) => {
+    const datos = {
+      folio: String(venta.id || venta.documentoId || ""),
+      fechaHora: Number(venta.fechaHora || Date.now()),
+      nombreUsuario: String(venta.nombreUsuario || "Usuario"),
+      numeroUsuario: String(venta.numeroUsuario || ""),
+      metodoPago: String(venta.metodoPago || ""),
+      total: Number(venta.total || 0),
+      recibido: Number(venta.recibido || 0),
+      cambio: Number(venta.cambio || 0),
+      productos: (Array.isArray(venta.productos) ? venta.productos : []).map(p => ({
+        nombre: String(p.nombre || "Producto"),
+        cantidad: Number(p.cantidad || 0),
+        precio: Number(p.precio || 0),
+        subtotal: Number(p.subtotal || 0),
+      })),
+    };
+    const bytes = new TextEncoder().encode(JSON.stringify(datos));
+    let binario = "";
+    for (const byte of bytes) binario += String.fromCharCode(byte);
+    const token = btoa(binario).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+    const url = new URL(window.location.href);
+    url.search = "";
+    url.searchParams.set("ticket", token);
+    url.hash = "";
+    return url.toString();
+  };
+
+  const imprimirComprobante = (venta) => {
+    const enlace = crearEnlaceTicket(venta);
+    const ventana = window.open(enlace, "_blank", "noopener,noreferrer");
+    if (!ventana) {
+      window.alert("Permite las ventanas emergentes para abrir el ticket.");
+    }
+  };
+
+  const descargarPDF = (venta) => {
+    // El navegador permite elegir «Guardar como PDF» sin añadir dependencias.
+    // Abrimos el comprobante para que el usuario elija Imprimir > Guardar como PDF.
+    imprimirComprobante(venta);
+  };
+
   // CARGANDO
   // =========================================================
 
@@ -535,13 +580,27 @@ function HistorialVentas({
             <button
               type="button"
               className="boton-imprimir-ticket"
-              onClick={() =>
-                window.print()
-              }
+              onClick={() => imprimirComprobante(venta)}
             >
               🖨️ Imprimir ticket
             </button>
 
+            <button type="button" onClick={() => descargarPDF(venta)}
+              style={{padding:"12px 16px",borderRadius:10,border:"1px solid #cbd5e1",background:"#fff",cursor:"pointer"}}>
+              📄 Abrir para guardar como PDF
+            </button>
+
+          </div>
+
+          <div style={{marginTop:18,padding:16,border:"1px solid #cbd5e1",borderRadius:14,background:"#f8fafc",display:"grid",justifyItems:"center",gap:10}}>
+            <strong>📱 QR del comprobante</strong>
+            <QRCodeSVG value={crearEnlaceTicket(venta)} size={192} includeMargin />
+            <a href={crearEnlaceTicket(venta)} target="_blank" rel="noopener noreferrer"
+              style={{wordBreak:"break-word",textAlign:"center"}}>Abrir ticket en otra pantalla</a>
+            <small style={{color:"#64748b",textAlign:"center"}}>
+              Este QR contiene una copia del ticket; no constituye una verificación criptográfica de la venta.
+              Para descargar PDF, abre el ticket y elige Imprimir → Guardar como PDF.
+            </small>
           </div>
 
         </section>
