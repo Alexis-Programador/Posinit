@@ -26,6 +26,7 @@ import { getAuth } from "firebase/auth";
 import CorteCaja from "./CorteCaja";
 import HistorialVentas from "./HistorialVentas";
 import { QRCodeSVG } from "qrcode.react";
+import { verificarPinCajero } from "../firebase/posPinBasico";
 
 const estiloOpcionMenu = {
   width: "100%",
@@ -63,6 +64,36 @@ function Ventas({
   usuario,
   onCerrarCaja,
 }) {
+  const [cajaEnEspera, setCajaEnEspera] = useState(false);
+  const [pinDesbloqueo, setPinDesbloqueo] = useState("");
+  const [errorDesbloqueo, setErrorDesbloqueo] = useState("");
+  const [validandoDesbloqueo, setValidandoDesbloqueo] = useState(false);
+
+  const ponerCajaEnEspera = () => {
+    setMostrarMenu(false);
+    setPinDesbloqueo("");
+    setErrorDesbloqueo("");
+    setCajaEnEspera(true);
+  };
+
+  const desbloquearCaja = async (evento) => {
+    evento.preventDefault();
+    if (validandoDesbloqueo) return;
+    setValidandoDesbloqueo(true);
+    setErrorDesbloqueo("");
+    try {
+      if (!ownerUid || !usuario?.id) throw new Error("No se identificó al cajero.");
+      const resultado = await verificarPinCajero({ ownerUid, usuarioId: usuario.id, pin: pinDesbloqueo });
+      if (!resultado.autorizado) throw new Error(resultado.mensaje || "PIN incorrecto.");
+      setCajaEnEspera(false);
+      setPinDesbloqueo("");
+    } catch (err) {
+      setErrorDesbloqueo(err.message || "No se pudo verificar el PIN.");
+      setPinDesbloqueo("");
+    } finally {
+      setValidandoDesbloqueo(false);
+    }
+  };
   // =========================================================
   // ESTADOS
   // =========================================================
@@ -176,7 +207,7 @@ function Ventas({
   const [
     montoRetiro,
     setMontoRetiro,
-  ] = useState("3000");
+  ] = useState("");
 
   const LIMITE_RETIRO = 3000;
 
@@ -468,9 +499,9 @@ function Ventas({
     async () => {
       if (procesandoRetiro) return;
 
-      const monto = Number(montoRetiro || LIMITE_RETIRO);
+      const monto = montoRetiro.trim() === "" ? NaN : Number(montoRetiro);
 
-      if (!Number.isFinite(monto) || monto <= 0) {
+      if (!Number.isFinite(monto) || monto <= 0 || Math.round(monto * 100) !== monto * 100) {
         setError("Escribe una cantidad válida para retirar.");
         return;
       }
@@ -555,7 +586,7 @@ function Ventas({
         setEfectivoEnCaja(saldoDespues);
         setMostrarConfirmarRetiro(false);
         setMostrarMenu(false);
-        setMontoRetiro("3000");
+        setMontoRetiro("");
         setMensajeVenta(
           `Retiro de $${monto.toFixed(2)} registrado correctamente.`
         );
@@ -933,8 +964,9 @@ Imprimir ticket
 
   useEffect(() => {
     const manejarTecla = (event) => {
+      if (cajaEnEspera) return;
       if (!["F1", "F2", "F3", "F4", "F5", "F9", "F10"].includes(event.key)) return;
-      if (event.key !== "F1") event.preventDefault();
+      event.preventDefault(); // F1 no debe abrir la ayuda del navegador.
       if (mostrarConfirmacionSalida || ticketVentaActual || mostrarConfirmarRetiro ||
           mostrarCerrarSesionCorte || mostrarCobro || mostrarConfigPay) return;
       if (mostrarHistorial || mostrarCorte) {
@@ -950,8 +982,7 @@ Imprimir ticket
         return;
       }
       if (event.key === "F9") {
-        // Pendiente de integrar con el verificador PIN del proyecto.
-        setError("F9 requiere conectar el verificador del PIN del cajero.");
+        ponerCajaEnEspera();
         return;
       }
       if (event.key === "F1") {
@@ -966,7 +997,7 @@ Imprimir ticket
           return;
         }
         setMostrarMenu(false);
-        setMontoRetiro("3000");
+        setMontoRetiro("");
         setMostrarConfirmarRetiro(true);
       } else if (event.key === "F3") {
         setMostrarMenu(false);
@@ -982,7 +1013,7 @@ Imprimir ticket
     return () => window.removeEventListener("keydown", manejarTecla);
   }, [mostrarMenu, mostrarHistorial, mostrarCorte, mostrarCobro,
       mostrarCerrarSesionCorte, mostrarConfirmarRetiro, mostrarConfirmacionSalida, mostrarConfigPay,
-      ticketVentaActual, efectivoEnCaja, ultimoCorteRealizado, onCerrarCaja]);
+      ticketVentaActual, efectivoEnCaja, ultimoCorteRealizado, onCerrarCaja, cajaEnEspera]);
 
   // =========================================================
   // CONFIRMACIÓN CIERRE DESPUÉS DEL CORTE
@@ -2543,7 +2574,7 @@ window.onload = function () {
         return;
       }
 
-      if (event.key === "Escape" || event.key === "Backspace") {
+      if (event.key === "Escape") {
         event.preventDefault();
 
         if (!procesandoRetiro) {
@@ -3255,6 +3286,26 @@ window.onload = function () {
 
       </div>
 
+      {cajaEnEspera && (
+        <div role="dialog" aria-modal="true" aria-label="Caja en espera"
+          onKeyDown={(e) => e.stopPropagation()}
+          style={{position:"fixed",inset:0,zIndex:99999,background:"#0f172a",color:"#fff",display:"grid",placeItems:"center",padding:20}}>
+          <form onSubmit={desbloquearCaja} style={{width:"min(420px,100%)",background:"#1e293b",padding:30,borderRadius:18,display:"grid",gap:16}}>
+            <h2 style={{margin:0}}>🔒 Caja en espera</h2>
+            <p style={{margin:0}}>Cajero: {usuario?.nombre || "Usuario"}. Introduce tu PIN de 4 dígitos para continuar.</p>
+            <input autoFocus type="password" inputMode="numeric" pattern="[0-9]{4}" maxLength={4}
+              autoComplete="off" aria-label="PIN del cajero" value={pinDesbloqueo}
+              onChange={(e)=>setPinDesbloqueo(e.target.value.replace(/\D/g,"").slice(0,4))}
+              style={{fontSize:24,padding:12,borderRadius:8,textAlign:"center"}} />
+            {errorDesbloqueo && <p role="alert" style={{color:"#fca5a5",margin:0}}>{errorDesbloqueo}</p>}
+            <button type="submit" disabled={validandoDesbloqueo || pinDesbloqueo.length!==4}
+              style={{padding:14,borderRadius:8,fontWeight:700,cursor:"pointer"}}>
+              {validandoDesbloqueo ? "Verificando…" : "Desbloquear caja"}
+            </button>
+          </form>
+        </div>
+      )}
+
       {/* MENÚ */}
 
       {mostrarMenu && (
@@ -3318,6 +3369,27 @@ window.onload = function () {
               }}
             >
 
+
+              <button
+                type="button"
+                style={
+                  estiloOpcionMenu
+                }
+                onClick={() =>
+                  setMostrarMenu(
+                    false
+                  )
+                }
+              >
+                <strong>
+                  F1 · ✕ Salir
+                </strong>
+
+                <span>
+                  Cerrar este menú.
+                </span>
+              </button>
+
               <button
                 type="button"
                 style={
@@ -3332,7 +3404,7 @@ window.onload = function () {
                   }
 
                   setMostrarMenu(false);
-                  setMontoRetiro("3000");
+                  setMontoRetiro("");
                   setMostrarConfirmarRetiro(true);
                   setError("");
                   setMensajeVenta("");
@@ -3431,33 +3503,12 @@ window.onload = function () {
                 </button>
               )}
 
-              <button
-                type="button"
-                style={
-                  estiloOpcionMenu
-                }
-                onClick={() =>
-                  setMostrarMenu(
-                    false
-                  )
-                }
-              >
-                <strong>
-                  F1 · ✕ Salir
-                </strong>
-
-                <span>
-                  Cerrar este menú.
-                </span>
-              </button>
-
               <button type="button" style={estiloOpcionMenu}
                 onClick={() => {
-                  setError("F9 requiere integrar el verificador de PIN existente.");
-                  setMostrarMenu(false);
+                  ponerCajaEnEspera();
                 }}>
                 <strong>F9 · 🔒 Poner caja en espera</strong>
-                <span>Pendiente de conectar la validación del PIN actual.</span>
+                <span>Bloquear la caja y desbloquear con el PIN del cajero.</span>
               </button>
 
               <button type="button" style={estiloOpcionMenu}
@@ -3557,7 +3608,7 @@ window.onload = function () {
                   type="number"
                   min="0.01"
                   max={efectivoEnCaja}
-                  step="0.01"
+                  step="1"
                   value={montoRetiro}
                   onChange={(e) => {
                     setMontoRetiro(e.target.value);
@@ -3588,7 +3639,7 @@ window.onload = function () {
               >
                 <span>Quedará en caja</span>
                 <strong>
-                  ${Math.max(0, efectivoEnCaja - Number(montoRetiro || LIMITE_RETIRO)).toFixed(2)}
+                  ${Math.max(0, efectivoEnCaja - Number(montoRetiro || 0)).toFixed(2)}
                 </strong>
               </div>
             </div>
