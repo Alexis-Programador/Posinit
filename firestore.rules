@@ -209,6 +209,18 @@ service cloud.firestore {
       }
 
 
+      // CIERRES DE SESIÓN: el cajero registra un aviso, no liquida efectivo.
+      match /cierresSesionCaja/{cierreId} {
+        allow read: if request.auth != null && request.auth.uid == uid;
+        allow create: if request.auth != null && request.auth.uid == uid
+          && request.resource.data.propietarioUid == uid
+          && request.resource.data.origen == "web"
+          && request.resource.data.estado in ["pendiente_revision", "sin_efectivo_registrado"]
+          && request.resource.data.efectivoRegistrado is number
+          && request.resource.data.efectivoRegistrado >= 0;
+        allow update, delete: if false;
+      }
+
       // ===================================================
       // RETIROS DE CAJA
       // ===================================================
@@ -381,15 +393,13 @@ service cloud.firestore {
           "productos",
           "creadoEn",
           "cobroMixtoId",
-          "totalVenta"
+          "totalVenta",
+          "metodo"
         ])
         && request.resource.data.keys().hasAll([
           "ownerUid",
           "total",
           "estado",
-          "banco",
-          "titular",
-          "clabe",
           "productos",
           "creadoEn"
         ])
@@ -411,10 +421,21 @@ service cloud.firestore {
             && request.resource.data.total >= 10
           )
         )
-        && request.resource.data.banco is string
-        && request.resource.data.titular is string
-        && request.resource.data.clabe is string
-        && request.resource.data.clabe.matches('^[0-9]{18}$')
+        && (
+          // Tarjeta Stripe: no necesita datos SPEI.
+          (request.resource.data.keys().hasAll(["metodo"])
+            && request.resource.data.metodo == "tarjeta"
+            && !request.resource.data.keys().hasAny(["banco", "titular", "clabe"])
+            && request.resource.data.total >= 10)
+          ||
+          // Compatibilidad con documentos SPEI existentes.
+          (!request.resource.data.keys().hasAny(["metodo"])
+            && request.resource.data.keys().hasAll(["banco", "titular", "clabe"])
+            && request.resource.data.banco is string
+            && request.resource.data.titular is string
+            && request.resource.data.clabe is string
+            && request.resource.data.clabe.matches('^[0-9]{18}$'))
+        )
         && request.resource.data.productos is list
         && request.resource.data.creadoEn == request.time;
 
@@ -479,9 +500,7 @@ service cloud.firestore {
           (
             request.resource.data.ticket.metodoPago
               == "transferencia"
-            && !resource.data.keys().hasAny([
-              "stripeConfirmacion"
-            ])
+            && !resource.data.keys().hasAny(["stripeConfirmacion", "metodo"])
           )
 
           ||
@@ -490,6 +509,8 @@ service cloud.firestore {
             (request.resource.data.ticket.metodoPago == "tarjeta"
               || (request.resource.data.ticket.metodoPago == "mixto"
                 && resource.data.keys().hasAll(["cobroMixtoId", "totalVenta"])))
+            && resource.data.keys().hasAll(["metodo"])
+            && resource.data.metodo == "tarjeta"
             && stripeVerificado()
           )
         );
