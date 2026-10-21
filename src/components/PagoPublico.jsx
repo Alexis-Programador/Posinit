@@ -71,7 +71,7 @@ export default function PagoPublico({ id }) {
 
   // Stripe genera la sesión en Cloudflare; el navegador nunca conoce la clave privada.
   const iniciarStripe = async () => {
-    if (stripeOcupado || pago?.estado !== "pendiente") return;
+    if (stripeOcupado || pago?.estado !== "pendiente" || (pago?.metodo && pago.metodo !== "tarjeta")) return;
     setStripeOcupado(true);
     setStripeMensaje("");
     try {
@@ -202,8 +202,11 @@ export default function PagoPublico({ id }) {
   const confirmado = pago?.estado === "confirmado" && !!pago.ticket;
   const pendiente = pago?.estado === "pendiente";
   const totalValido = Number.isFinite(Number(pago?.total)) && Number(pago?.total) > 0;
-  const tieneSPEI = Boolean(pago?.banco && pago?.titular && pago?.clabe);
-  const stripeHabilitado = pendiente && totalValido;
+  const esMixto = Boolean(pago?.cobroMixtoId);
+  const soloTarjeta = esMixto || pago?.metodo === "tarjeta";
+  const soloSPEI = pago?.metodo === "transferencia" || (pago?.metodo !== "tarjeta" && Boolean(pago?.banco && pago?.titular && pago?.clabe));
+  const tieneSPEI = !soloTarjeta && Boolean(pago?.banco && pago?.titular && pago?.clabe);
+  const stripeHabilitado = pendiente && totalValido && Number(pago?.total) >= 10 && !soloSPEI;
 
   return (
     <main style={{ minHeight: "100vh", padding: "30px 12px", boxSizing: "border-box", background: "linear-gradient(160deg,#091b3b 0%,#143a75 55%,#e9f1ff 55%)", fontFamily: "system-ui,-apple-system,Segoe UI,sans-serif", color: "#10213c" }}>
@@ -217,9 +220,10 @@ export default function PagoPublico({ id }) {
         {error && <p role="alert" style={{ background: "#fef2f2", color: "#991b1b", padding: 12, borderRadius: 12 }}>{error}</p>}
         {!pago ? (!error && <p role="status" style={{ textAlign: "center" }}>Consultando solicitud de pago…</p>) : <>
           <div style={{ ...card, textAlign: "center", background: "#eaf2ff" }}>
-            <div style={{ ...texto, fontSize: 14 }}>Total a pagar</div>
+            <div style={{ ...texto, fontSize: 14 }}>{esMixto ? "Importe de esta tarjeta" : "Total a pagar"}</div>
             <div style={{ fontWeight: 850, fontSize: "clamp(32px,9vw,42px)", color: "#0d326b" }}>{moneda(pago.total)}</div>
             <small style={{ color: "#55739b" }}>Pesos mexicanos · MXN</small>
+            {esMixto && <p style={{ ...texto, marginBottom: 0 }}>Pago parcial de una compra de {moneda(pago.totalVenta)}. La venta se completará cuando el cajero confirme todos los métodos de pago.</p>}
           </div>
 
           {confirmado ? <div style={{ marginTop: 18 }}>
@@ -233,12 +237,12 @@ export default function PagoPublico({ id }) {
             {detalleTarjeta(pago) && <p style={texto}>💳 {detalleTarjeta(pago)}</p>}
             <button type="button" onClick={descargarTicket} style={{ ...btn, background: "#102c5c", color: "white" }}>⬇️ Descargar ticket como imagen</button>
           </div> : pendiente ? <div style={{ marginTop: 20 }}>
-            <h2 style={{ fontSize: 19, margin: "0 0 12px" }}>Elige cómo quieres pagar</h2>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 9 }}>
+            <h2 style={{ fontSize: 19, margin: "0 0 12px" }}>{soloTarjeta ? "Pagar en línea con tarjeta" : soloSPEI ? "Transferencia SPEI" : "Elige cómo quieres pagar"}</h2>
+            {!soloTarjeta && !soloSPEI && <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 9 }}>
               <button type="button" aria-pressed={metodo === "tarjeta"} onClick={() => setMetodo("tarjeta")} style={{ ...btn, background: metodo === "tarjeta" ? "#123d80" : "#eef3fc", color: metodo === "tarjeta" ? "white" : "#18345b" }}>💳 Tarjeta</button>
               <button type="button" aria-pressed={metodo === "banco"} onClick={() => setMetodo("banco")} style={{ ...btn, background: metodo === "banco" ? "#123d80" : "#eef3fc", color: metodo === "banco" ? "white" : "#18345b" }}>🏦 Banco / SPEI</button>
             </div>
-            {metodo === "tarjeta" ? <div style={{ ...card, marginTop: 14 }}>
+            {(soloTarjeta || (!soloSPEI && metodo === "tarjeta")) ? <div style={{ ...card, marginTop: 14 }}>
               <h3 style={{ margin: "0 0 8px", fontSize: 17 }}>Paga con tarjeta</h3>
               <p style={{ ...texto, marginTop: 0 }}>Tarjeta de débito o crédito. Las opciones disponibles dependen del proveedor de pagos.</p>
               <div style={{ padding: 12, marginBottom: 12, borderRadius: 10, background: "#eff6ff", border: "1px solid #93c5fd" }}>
