@@ -39,19 +39,23 @@ function ModalCobro({ total = 0, procesando = false, onCerrar, onConfirmar, owne
     return onSnapshot(doc(db, "pagosPosInit", pagoId), snap => {
       const datos = snap.exists() ? snap.data() : null;
       setEstadoPago(datos?.estado || "no_disponible");
-      setStripePagado(Boolean(datos?.stripeConfirmacion?.estado === "paid" && datos?.stripeConfirmacion?.proveedor === "stripe" && datos?.stripeConfirmacion?.entorno === "test" && datos?.stripeConfirmacion?.moneda === "mxn" && Number(datos?.stripeConfirmacion?.importeCentavos) === Math.round(Number(total) * 100)));
+      setStripePagado(Boolean(datos?.ownerUid === ownerUid && datos?.metodo === "tarjeta" && datos?.estado === "pendiente" && Math.round(Number(datos?.total) * 100) === Math.round(Number(total) * 100) && datos?.stripeConfirmacion?.estado === "paid" && datos?.stripeConfirmacion?.proveedor === "stripe" && datos?.stripeConfirmacion?.entorno === "test" && datos?.stripeConfirmacion?.moneda === "mxn" && /^cs_test_[A-Za-z0-9_]+$/.test(datos?.stripeConfirmacion?.sessionId || "") && Boolean(datos?.stripeConfirmacion?.eventId) && Number(datos?.stripeConfirmacion?.importeCentavos) === Math.round(Number(total) * 100)));
     }, err => setError("No se pudo consultar el pago: " + err.message));
-  }, [pagoId]);
+  }, [pagoId, ownerUid, total]);
   useEffect(() => {
-    if (!pagoId || !stripePagado || procesando || confirmadoAutomaticoRef.current === pagoId) return;
+    if (metodoPago !== "tarjeta" || !pagoId || !stripePagado || procesando || confirmadoAutomaticoRef.current === pagoId) return;
     confirmadoAutomaticoRef.current = pagoId;
     onConfirmar?.({ metodoPago: "tarjeta", recibido: Number(total), cambio: 0, pagoDigitalId: pagoId });
-  }, [pagoId, stripePagado, procesando, total, onConfirmar]);
+  }, [metodoPago, pagoId, stripePagado, procesando, total, onConfirmar]);
 
   const generarPago = async () => {
     if (creandoPago || pagoId) return;
-    if (!ownerUid || !titular.trim() || !banco.trim() || !/^\d{18}$/.test(clabe.trim())) {
-      setError("El propietario debe configurar una cuenta SPEI válida en POS Init Pay."); return;
+    if (!ownerUid) { setError("Debes iniciar sesión para generar un pago."); return; }
+    if (metodoPago === "digital" && (!titular.trim() || !banco.trim() || !/^\d{18}$/.test(clabe.trim()))) {
+      setError("Configura una cuenta SPEI válida para transferencias."); return;
+    }
+    if (metodoPago === "tarjeta" && Number(total) < 10) {
+      setError("Stripe requiere un mínimo de $10 MXN por tarjeta."); return;
     }
     setCreandoPago(true); setError("");
     try {
@@ -79,9 +83,9 @@ function ModalCobro({ total = 0, procesando = false, onCerrar, onConfirmar, owne
         ownerUid,
         total: totalCalculado,
         estado: "pendiente",
-        banco: banco.trim(),
-        titular: titular.trim(),
-        clabe: clabe.trim(),
+        ...(metodoPago === "tarjeta"
+          ? { metodo: "tarjeta" }
+          : { banco: banco.trim(), titular: titular.trim(), clabe: clabe.trim() }),
         productos: detalle,
         creadoEn: serverTimestamp(),
       });
@@ -95,8 +99,12 @@ function ModalCobro({ total = 0, procesando = false, onCerrar, onConfirmar, owne
 
   const confirmar = () => {
     if (procesando) return;
+    if (metodoPago === "tarjeta") {
+      setError("El pago con tarjeta se confirma exclusivamente mediante Stripe.");
+      return;
+    }
     if (metodoPago === "digital") {
-      if (!pagoId || estadoPago !== "pendiente" || !depositoVerificado) {
+      if (!pagoId || estadoPago !== "pendiente" || stripePagado || !depositoVerificado) {
         setError("Verifica el ingreso real en tu banco y marca la casilla antes de confirmar."); return;
       }
       setError("");
@@ -120,7 +128,7 @@ function ModalCobro({ total = 0, procesando = false, onCerrar, onConfirmar, owne
       }
       if (event.key === "Backspace") {
         // El navegador borra normalmente dentro del campo; nunca cierra el modal.
-        if (document.activeElement !== inputRef.current) {
+        if (document.activeElement !== inputRef.current && !["INPUT", "TEXTAREA"].includes(document.activeElement?.tagName) && !document.activeElement?.isContentEditable) {
           event.preventDefault();
           if (metodoPago === "efectivo") setRecibidoTexto((anterior) => anterior.slice(0, -1));
         }
@@ -167,9 +175,10 @@ function ModalCobro({ total = 0, procesando = false, onCerrar, onConfirmar, owne
         <div style={{ marginTop: 12, padding: 12, borderRadius: 14, background: "#f1f5f9", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <strong>Total</strong><strong style={{ fontSize: 26 }}>${totalNumero.toFixed(2)}</strong>
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 12 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 10, marginTop: 12 }}>
           <button type="button" onClick={() => { setMetodoPago("efectivo"); setError(""); }} style={estiloBoton(metodoPago === "efectivo")}>💵<br />Efectivo</button>
-          <button type="button" onClick={() => { setMetodoPago("digital"); setError(""); }} style={estiloBoton(metodoPago === "digital")}>📱<br />POS Init Pay</button>
+          <button type="button" onClick={() => { if (!pagoId) { setMetodoPago("digital"); setError(""); } }} disabled={Boolean(pagoId)} style={estiloBoton(metodoPago === "digital")}>🏦<br />SPEI</button>
+          <button type="button" onClick={() => { if (!pagoId) { setMetodoPago("tarjeta"); setError(""); } }} disabled={Boolean(pagoId)} style={estiloBoton(metodoPago === "tarjeta")}>💳<br />Tarjeta QR</button>
         </div>
         <button type="button" onClick={() => { setMostrarDemoMixto(true); setAdvertenciaMixto(""); setError(""); }}
           disabled={procesando || stripePagado || Boolean(pagoId)}
@@ -185,14 +194,14 @@ function ModalCobro({ total = 0, procesando = false, onCerrar, onConfirmar, owne
           <div style={{ display: "flex", justifyContent: "space-between", marginTop: 22, paddingBottom: 14, borderBottom: "1px solid #cbd5e1", fontSize: 18 }}><strong>Cambio</strong><strong style={{ color: "#15803d", fontSize: 22 }}>${cambio.toFixed(2)}</strong></div>
           <p style={{ color: "#64748b", fontSize: 13 }}>↑ y ↓ aumentan o disminuyen $1. Backspace borra; Escape cancela.</p>
         </> : <div style={{ marginTop: 12, padding: 12, background: "#eff6ff", borderRadius: 12, lineHeight: 1.5 }}>
-          <strong>📱 POS Init Pay — Transferencia SPEI</strong>
+          <strong>{metodoPago === "tarjeta" ? "💳 POS Init Pay — Tarjeta con QR" : "🏦 POS Init Pay — Transferencia SPEI"}</strong>
           {!pagoId ? <>
             <p style={{ fontSize: 12, margin: "7px 0" }}>
-              {banco && titular && /^\d{18}$/.test(clabe) ?
+              {metodoPago === "tarjeta" ? "Escanea el QR y paga con tarjeta mediante Stripe TEST. No requiere CLABE." : banco && titular && /^\d{18}$/.test(clabe) ?
                 `Cuenta SPEI configurada: ${banco} · ${titular}` :
                 "La cuenta SPEI aún no está configurada. El propietario debe configurarla desde POS Init Pay."}
             </p>
-            <button type="button" onClick={generarPago} disabled={creandoPago || !banco || !titular || !/^\d{18}$/.test(clabe)}
+            <button type="button" onClick={generarPago} disabled={creandoPago || (metodoPago === "digital" && (!banco || !titular || !/^\d{18}$/.test(clabe)))}
               style={{ padding: 10, width: "100%", background: "#2563eb", color: "white", border: 0, borderRadius: 9, fontWeight: 800, cursor: "pointer" }}>
               {creandoPago ? "Generando..." : "Generar QR de pago"}
             </button>          </> : <div style={{ textAlign: "center", paddingTop: 6 }}>
@@ -200,17 +209,17 @@ function ModalCobro({ total = 0, procesando = false, onCerrar, onConfirmar, owne
             <p style={{ margin: "6px 0", fontSize: 13 }}><strong>Escanea para pagar ${totalNumero.toFixed(2)}</strong></p>
             <a href={urlPago} target="_blank" rel="noreferrer" style={{ display: "block", fontSize: 12, margin: "5px 0" }}>Abrir enlace de pago</a>
             <p style={{ margin: "5px 0", fontSize: 13 }}>Estado: <strong>{stripePagado ? "✅ Tarjeta verificada por Stripe; registrando venta..." : estadoPago === "pendiente" ? "⏳ Esperando verificación" : estadoPago}</strong></p>
-            <label style={{ display: "block", textAlign: "left", background: "white", padding: 12, borderRadius: 8 }}>
+            {metodoPago === "digital" && <label style={{ display: "block", textAlign: "left", background: "white", padding: 12, borderRadius: 8 }}>
               <input type="checkbox" checked={depositoVerificado} onChange={e => setDepositoVerificado(e.target.checked)} /> He comprobado en mi banca que el dinero llegó a la cuenta y coincide el importe.
-            </label>
-            <p style={{ fontSize: 12 }}>No confirmes solo por una captura de pantalla del cliente.</p>
+            </label>}
+            <p style={{ fontSize: 12 }}>{metodoPago === "tarjeta" ? "El pago se registra solo tras confirmación del webhook de Stripe." : "No confirmes solo por una captura de pantalla del cliente."}</p>
           </div>}
         </div>}
         {advertenciaMixto && <div role="status" style={{ marginTop: 12, padding: 10, borderRadius: 9, background: "#fffbeb", color: "#92400e" }}>{advertenciaMixto}</div>}
         {error && <div role="alert" style={{ marginTop: 14, padding: 11, borderRadius: 9, background: "#fef2f2", color: "#b91c1c", fontWeight: 700 }}>{error}</div>}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1.25fr", gap: 12, marginTop: 12 }}>
           <button type="button" onClick={onCerrar} disabled={procesando || stripePagado} style={{ minHeight: 44, border: 0, borderRadius: 11, fontWeight: 800, cursor: "pointer" }}>Escape · Cancelar</button>
-          <button type="button" onClick={confirmar} disabled={procesando || creandoPago || stripePagado || (metodoPago === "digital" && (!pagoId || !depositoVerificado || estadoPago !== "pendiente"))} style={{ minHeight: 44, border: 0, borderRadius: 11, background: "#0f172a", color: "#fff", fontWeight: 800, cursor: "pointer" }}>{procesando ? "Procesando..." : metodoPago === "efectivo" ? "Enter · Confirmar venta" : "Confirmar depósito verificado"}</button>
+          <button type="button" onClick={confirmar} disabled={procesando || creandoPago || stripePagado || metodoPago === "tarjeta" || (metodoPago === "digital" && (!pagoId || !depositoVerificado || estadoPago !== "pendiente"))} style={{ minHeight: 44, border: 0, borderRadius: 11, background: "#0f172a", color: "#fff", fontWeight: 800, cursor: "pointer" }}>{procesando ? "Procesando..." : metodoPago === "efectivo" ? "Enter · Confirmar venta" : metodoPago === "tarjeta" ? "Esperando Stripe" : "Confirmar depósito verificado"}</button>
         </div>
       </section>
     </div>
