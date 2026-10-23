@@ -1,3 +1,4 @@
+
 import { collection, doc, getDoc, onSnapshot, serverTimestamp, setDoc } from "firebase/firestore";
 import { db } from "../firebase/firebaseConfig";
 
@@ -107,15 +108,11 @@ export function revisarPagoMixto(plan, indice, datos) {
 
 // Crea como máximo un documento por tarjeta y conserva el ID para reintentos.
 // Requiere las reglas preparadas que aceptan cobroMixtoId y totalVenta.
-export async function prepararTarjetaMixta(plan, indice, configBancaria) {
+export async function prepararTarjetaMixta(plan, indice) {
   const fila = plan?.pagos?.[indice];
   if (!fila || fila.tipo !== "tarjeta") throw new Error("No es un pago con tarjeta.");
   const actual = recuperarPlanMixto(plan.ownerUid);
   if (!actual || actual.id !== plan.id) throw new Error("El plan ya no está disponible en este dispositivo.");
-  const banco = String(configBancaria?.banco || "").trim();
-  const titular = String(configBancaria?.titular || "").trim();
-  const clabe = String(configBancaria?.clabe || "").trim();
-  if (!banco || !titular || !/^\d{18}$/.test(clabe)) throw new Error("Configura la cuenta bancaria de POS Init Pay.");
   const pagoId = actual.pagos[indice].pagoId || idNuevo();
   if (!actual.pagos[indice].pagoId) {
     actual.pagos[indice].pagoId = pagoId;
@@ -127,7 +124,7 @@ export async function prepararTarjetaMixta(plan, indice, configBancaria) {
     await setDoc(ref, {
       ownerUid: plan.ownerUid, total: pesos(fila.importeCentavos),
       totalVenta: pesos(plan.totalCentavos), cobroMixtoId: plan.id,
-      estado: "pendiente", banco, titular, clabe,
+      estado: "pendiente", metodo: "tarjeta",
       productos: plan.productos, creadoEn: serverTimestamp(),
     });
   } else {

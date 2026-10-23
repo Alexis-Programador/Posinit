@@ -1,3 +1,4 @@
+
 import { useEffect, useState } from "react";
 import { doc, onSnapshot } from "firebase/firestore";
 import { db } from "../firebase/firebaseConfig";
@@ -241,7 +242,7 @@ export default function PagoPublico({ id }) {
             {!soloTarjeta && !soloSPEI && <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 9 }}>
               <button type="button" aria-pressed={metodo === "tarjeta"} onClick={() => setMetodo("tarjeta")} style={{ ...btn, background: metodo === "tarjeta" ? "#123d80" : "#eef3fc", color: metodo === "tarjeta" ? "white" : "#18345b" }}>💳 Tarjeta</button>
               <button type="button" aria-pressed={metodo === "banco"} onClick={() => setMetodo("banco")} style={{ ...btn, background: metodo === "banco" ? "#123d80" : "#eef3fc", color: metodo === "banco" ? "white" : "#18345b" }}>🏦 Banco / SPEI</button>
-            </div>
+            </div>}
             {(soloTarjeta || (!soloSPEI && metodo === "tarjeta")) ? <div style={{ ...card, marginTop: 14 }}>
               <h3 style={{ margin: "0 0 8px", fontSize: 17 }}>Paga con tarjeta</h3>
               <p style={{ ...texto, marginTop: 0 }}>Tarjeta de débito o crédito. Las opciones disponibles dependen del proveedor de pagos.</p>

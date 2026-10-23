@@ -1,3 +1,4 @@
+
 import { useEffect, useMemo, useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import {
@@ -59,7 +60,7 @@ export default function CobroMixtoEnProceso({ total, productos, ownerUid, banco,
     if (!plan || !siguiente || preparando) return;
     setPreparando(true); setError("");
     try {
-      await prepararTarjetaMixta(plan, siguiente.indice, { banco, titular, clabe });
+      await prepararTarjetaMixta(plan, siguiente.indice);
       const recuperado = recuperarPlanMixto(ownerUid);
       if (!recuperado || recuperado.id !== plan.id) throw new Error("No se pudo recuperar el plan guardado.");
       setPlan({ ...recuperado });
@@ -126,7 +127,7 @@ export default function CobroMixtoEnProceso({ total, productos, ownerUid, banco,
             <button type="button" style={{ ...btn, background: listo ? "#047857" : "#94a3b8", color: "white", width: "100%" }} disabled={!listo || procesando} onClick={() => onConfirmar?.({ metodoPago: "mixto", cobroMixtoId: plan.id, pagos: plan.pagos, total: plan.totalCentavos / 100 })}>
               {procesando ? "Procesando..." : "Confirmar venta con todos los pagos verificados"}
             </button>
-            <p style={{ fontSize: 12, color: "#92400e" }}>⚠️ La venta solo puede confirmarse cuando Ventas.jsx implemente la transacción mixta. Este botón no debe sustituir esa validación.</p>
+            <p style={{ fontSize: 12, color: "#92400e" }}>⚠️ La venta se registra únicamente si Ventas.jsx verifica todos los pagos en la transacción de Firestore.</p>
           </>
         )}
         {aviso && <p role="status" style={{ color: "#1d4ed8" }}>{aviso}</p>}
