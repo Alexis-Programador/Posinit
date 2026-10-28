@@ -1,3 +1,4 @@
+
 html {
   min-width: 320px;
   min-height: 100%;
@@ -7,3 +8,11 @@ body {
   min-width: 320px;
   min-height: 100vh;
 }
+/* POS Init — refinamientos responsive */
+:root { font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif; }
+button, input, select { font: inherit; }
+button { transition: filter .16s ease, transform .16s ease; }
+button:not(:disabled):hover { filter: brightness(.96); }
+button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible { outline: 3px solid #60a5fa; outline-offset: 2px; }
+@media (max-width: 560px) { .pos-payment-qr-layout { grid-template-columns: 1fr !important; } }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; } }

@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { doc, onSnapshot } from "firebase/firestore";
 import { db } from "../firebase/firebaseConfig";
 
+
 const moneda = (n) => Number(n || 0).toLocaleString("es-MX", { style: "currency", currency: "MXN" });
 const btn = { width: "100%", border: 0, borderRadius: 14, padding: "15px 16px", fontSize: 15, fontWeight: 750, cursor: "pointer" };
 const card = { background: "#f5f8ff", border: "1px solid #e0e9fa", borderRadius: 16, padding: 16 };
