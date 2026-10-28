@@ -28,6 +28,74 @@ import CorteCaja from "./CorteCaja";
 import HistorialVentas from "./HistorialVentas";
 import { QRCodeSVG } from "qrcode.react";
 import { verificarPinCajero } from "../firebase/posPinBasico";
+import EscanerProductos from "./EscanerProductos";
+
+// FUNCIONES NATIVAS: clima, reloj y cámara. Sin dependencias adicionales.
+function ClimaHoraPos({ actualizarToken = 0 }) {
+  const [clima, setClima] = useState(null);
+  const [hora, setHora] = useState("");
+  const [estado, setEstado] = useState("");
+  const zona = clima?.zona;
+
+  useEffect(() => {
+    const actualizar = () => {
+      try {
+        setHora(new Intl.DateTimeFormat("es-MX", {
+          hour: "2-digit", minute: "2-digit", hour12: true,
+          ...(zona ? { timeZone: zona } : {}),
+        }).format(new Date()));
+      } catch {
+        setHora(new Date().toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" }));
+      }
+    };
+    actualizar();
+    const id = setInterval(actualizar, 30000);
+    return () => clearInterval(id);
+  }, [zona]);
+
+  const activarUbicacion = () => {
+    if (!navigator.geolocation) { setEstado("Ubicación no disponible"); return; }
+    setEstado("Consultando clima...");
+    navigator.geolocation.getCurrentPosition(async ({ coords }) => {
+      try {
+        const params = new URLSearchParams({
+          latitude: String(coords.latitude), longitude: String(coords.longitude),
+          current: "temperature_2m,weather_code", timezone: "auto",
+        });
+        const respuesta = await fetch(`https://api.open-meteo.com/v1/forecast?${params}`);
+        if (!respuesta.ok) throw new Error("No se pudo consultar el clima");
+        const datos = await respuesta.json();
+        const codigo = Number(datos.current?.weather_code ?? -1);
+        const icono = codigo <= 1 && codigo >= 0 ? "☀️" : codigo <= 3 ? "🌤️" : codigo <= 48 ? "🌫️" : codigo <= 67 ? "🌧️" : codigo <= 77 ? "❄️" : "⛈️";
+        setClima({
+          temperatura: Math.round(Number(datos.current.temperature_2m)),
+          zona: datos.timezone,
+          // Zona horaria como aproximación de ciudad, no geocodificación exacta.
+          ciudad: String(datos.timezone || "Ubicación actual").split("/").pop().replaceAll("_", " "),
+          icono,
+        });
+        setEstado("");
+      } catch (err) { setEstado(err.message || "Error de clima"); }
+    }, () => setEstado("Ubicación no autorizada"), {
+      enableHighAccuracy: false, timeout: 12000, maximumAge: 300000,
+    });
+  };
+
+  useEffect(() => {
+    if (actualizarToken > 0) activarUbicacion();
+    // El token cambia únicamente al solicitar F8.
+  }, [actualizarToken]);
+
+  return (
+    <div className="pos-clima-hora" style={{ display: "flex", alignItems: "center", gap: 10, padding: "7px 12px", border: "1px solid #55708a", borderRadius: 10, color: "#fff", fontSize: 13, flexWrap: "wrap" }}>
+      {clima ? <><strong>{clima.icono} {clima.temperatura} °C</strong><span>📍 {clima.ciudad}</span></> : (
+        <button type="button" onClick={activarUbicacion} style={{ background: "transparent", color: "#fff", border: "1px solid #7c9ab3", borderRadius: 7, padding: "4px 7px", cursor: "pointer" }}>📍 Activar clima</button>
+      )}
+      <strong>🕒 {hora}</strong>
+      {estado && <small title={estado} style={{ color: "#ffdc9d" }}>{estado}</small>}
+    </div>
+  );
+}
 
 const estiloOpcionMenu = {
   width: "100%",
@@ -212,6 +280,122 @@ function Ventas({
 
   const LIMITE_RETIRO = 3000;
 
+  const [mostrarEscanerCamara, setMostrarEscanerCamara] = useState(false);
+  const [configuracionFunciones, setConfiguracionFunciones] = useState(null);
+  const [actualizacionClima, setActualizacionClima] = useState(0);
+  const [camarasConfiguracion, setCamarasConfiguracion] = useState([]);
+  const [camaraElegida, setCamaraElegida] = useState(() => localStorage.getItem("pos-init-camara-preferida") || "");
+  const [mensajeConfiguracion, setMensajeConfiguracion] = useState("");
+  const abrirConfiguracion = (tipo) => {
+    setMostrarMenu(false);
+    setMensajeConfiguracion("");
+    setConfiguracionFunciones(tipo);
+  };
+  useEffect(() => {
+    if (configuracionFunciones !== "camara") return;
+    let cancelado = false;
+    (async () => {
+      let stream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+        const dispositivos = await navigator.mediaDevices.enumerateDevices();
+        const lista = dispositivos.filter((d) => d.kind === "videoinput");
+        if (!cancelado) {
+          setCamarasConfiguracion(lista);
+          setCamaraElegida((anterior) => lista.some((d) => d.deviceId === anterior) ? anterior : (lista[0]?.deviceId || ""));
+          if (!lista.length) setMensajeConfiguracion("No se encontraron cámaras.");
+        }
+      } catch (err) {
+        if (!cancelado) setMensajeConfiguracion(`No se pudo acceder a la cámara: ${err.message}`);
+      } finally {
+        stream?.getTracks().forEach((track) => track.stop());
+      }
+    })();
+    return () => { cancelado = true; };
+  }, [configuracionFunciones]);
+  const probarNotificacion = () => {
+    if (!("Notification" in window) || Notification.permission !== "granted") {
+      setMensajeConfiguracion("Primero autoriza las notificaciones desde Chrome.");
+      return;
+    }
+    try {
+      const aviso = new Notification("POS Init · Prueba de notificaciones", {
+        body: "Las notificaciones del sistema están funcionando.",
+        tag: "pos-init-prueba",
+      });
+      aviso.onclick = () => { window.focus(); aviso.close(); };
+      setMensajeConfiguracion("Notificación enviada a Windows. Comprueba el centro de notificaciones.");
+    } catch (err) { setMensajeConfiguracion(`No se pudo mostrar la notificación: ${err.message}`); }
+  };
+  const [permisoNotificacion, setPermisoNotificacion] = useState(() =>
+    typeof window !== "undefined" && "Notification" in window ? Notification.permission : "unsupported"
+  );
+  const [cajaListaParaAlertar, setCajaListaParaAlertar] = useState(false);
+  // Último saldo de efectivo que generó una notificación.
+  // Se compara en centavos para evitar diferencias de punto flotante.
+  const ultimoSaldoNotificadoRef = useRef(null);
+  const cajaClave = `${ownerUid}-${usuario?.id ?? usuario?.numeroUsuario ?? "caja"}`;
+
+  useEffect(() => {
+    // Reiniciar el control al cambiar de cajero o negocio.
+    ultimoSaldoNotificadoRef.current = null;
+  }, [cajaClave]);
+
+  useEffect(() => {
+    // Esperar a que Firestore entregue ventas, retiros y cortes.
+    if (!cajaListaParaAlertar) return;
+
+    const saldo = Number(efectivoEnCaja);
+    if (!Number.isFinite(saldo)) return;
+    const saldoCentavos = Math.round(saldo * 100);
+    const limiteCentavos = Math.round(LIMITE_RETIRO * 100);
+
+    if (saldoCentavos < limiteCentavos) {
+      // Después de un retiro, una nueva llegada al límite avisará otra vez.
+      ultimoSaldoNotificadoRef.current = null;
+      return;
+    }
+
+    // Notificar cada aumento real por encima del límite, no cada render.
+    if (ultimoSaldoNotificadoRef.current !== null &&
+        saldoCentavos <= ultimoSaldoNotificadoRef.current) return;
+
+    if (permisoNotificacion !== "granted" ||
+        typeof Notification === "undefined" ||
+        Notification.permission !== "granted") return;
+
+    try {
+      const aviso = new Notification("POS Init · Retiro de caja", {
+        body: `Efectivo en caja: $${saldo.toLocaleString("es-MX", {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        })} MXN. Realiza un retiro.`,
+        // Sin tag: Chrome no reemplaza el aviso anterior por el nuevo.
+        requireInteraction: true,
+      });
+      ultimoSaldoNotificadoRef.current = saldoCentavos;
+      aviso.onclick = () => {
+        window.focus();
+        setMontoRetiro("");
+        setMostrarMenu(false);
+        setMostrarConfirmarRetiro(true);
+        aviso.close();
+      };
+    } catch (err) {
+      console.warn("No se pudo mostrar la notificación de retiro:", err);
+    }
+  }, [efectivoEnCaja, permisoNotificacion, cajaListaParaAlertar, cajaClave]);
+
+  const activarNotificaciones = async () => {
+    if (!("Notification" in window)) { setError("Este navegador no admite notificaciones del sistema."); return; }
+    try {
+      const resultado = await Notification.requestPermission();
+      setPermisoNotificacion(resultado);
+      if (resultado !== "granted") setError("Autoriza las notificaciones desde la configuración del navegador.");
+    } catch { setError("No se pudo solicitar permiso para notificaciones."); }
+  };
+
+
   // =========================================================
   // CARGAR PRODUCTOS + INVENTARIO
   // =========================================================
@@ -277,6 +461,7 @@ function Ventas({
   // =========================================================
 
   useEffect(() => {
+    setCajaListaParaAlertar(false);
     if (!ownerUid || !usuario) {
       setEfectivoEnCaja(0);
       return undefined;
@@ -285,6 +470,7 @@ function Ventas({
     let ventasCaja = [];
     let retirosCaja = [];
     let cortesCaja = [];
+    let ventasRecibidas = false, retirosRecibidos = false, cortesRecibidos = false;
 
     const esDelCajero = (
       movimiento
@@ -316,6 +502,7 @@ function Ventas({
     };
 
     const recalcular = () => {
+      if (!(ventasRecibidas && retirosRecibidos && cortesRecibidos)) return;
       const ultimoCorte =
         cortesCaja
           .filter(
@@ -377,6 +564,7 @@ function Ventas({
           )
         )
       );
+      setCajaListaParaAlertar(true);
     };
 
     const cancelarVentas =
@@ -399,6 +587,7 @@ function Ventas({
               })
             );
 
+          ventasRecibidas = true;
           recalcular();
         },
 
@@ -419,6 +608,7 @@ function Ventas({
         ),
 
         (snapshot) => {
+          retirosRecibidos = true;
           retirosCaja =
             snapshot.docs.map(
               (d) => ({
@@ -455,6 +645,7 @@ function Ventas({
         ),
 
         (snapshot) => {
+          cortesRecibidos = true;
           cortesCaja =
             snapshot.docs.map(
               (d) => ({
@@ -966,8 +1157,12 @@ Imprimir ticket
   useEffect(() => {
     const manejarTecla = (event) => {
       if (cajaEnEspera) return;
-      if (!["F1", "F2", "F3", "F4", "F5", "F9", "F10"].includes(event.key)) return;
+      if (!["F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9", "F10"].includes(event.key)) return;
       event.preventDefault(); // F1 no debe abrir la ayuda del navegador.
+      if (configuracionFunciones) {
+        if (event.key === "F1") setConfiguracionFunciones(null);
+        return;
+      }
       if (mostrarConfirmacionSalida || ticketVentaActual || mostrarConfirmarRetiro ||
           mostrarCerrarSesionCorte || mostrarCobro || mostrarConfigPay) return;
       if (mostrarHistorial || mostrarCorte) {
@@ -989,6 +1184,10 @@ Imprimir ticket
       if (event.key === "F1") {
         event.preventDefault();
         setMostrarMenu((abierto) => !abierto);
+        return;
+      }
+      if (["F6", "F7", "F8"].includes(event.key)) {
+        abrirConfiguracion({ F6: "camara", F7: "notificaciones", F8: "ubicacion" }[event.key]);
         return;
       }
       if (!mostrarMenu) return;
@@ -1014,7 +1213,7 @@ Imprimir ticket
     return () => window.removeEventListener("keydown", manejarTecla);
   }, [mostrarMenu, mostrarHistorial, mostrarCorte, mostrarCobro,
       mostrarCerrarSesionCorte, mostrarConfirmarRetiro, mostrarConfirmacionSalida, mostrarConfigPay,
-      ticketVentaActual, efectivoEnCaja, ultimoCorteRealizado, onCerrarCaja, cajaEnEspera]);
+      ticketVentaActual, efectivoEnCaja, ultimoCorteRealizado, onCerrarCaja, cajaEnEspera, configuracionFunciones]);
 
   // =========================================================
   // CONFIRMACIÓN CIERRE DESPUÉS DEL CORTE
@@ -2742,8 +2941,8 @@ window.onload = function () {
         }}
       >
 
-        <div>
-
+        <div style={{ display: "flex", alignItems: "center", gap: 18, flexWrap: "wrap" }}>
+          <div>
           <h1>
             POS Init
           </h1>
@@ -2777,10 +2976,14 @@ window.onload = function () {
               ⚠ Retiro requerido · ${efectivoEnCaja.toFixed(2)} en caja
             </div>
           )}
-
+          </div>
+          <ClimaHoraPos actualizarToken={actualizacionClima} />
         </div>
 
-        <div className="ventas-header-acciones">
+        <div className="ventas-header-acciones" style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          {permisoNotificacion !== "granted" && (
+            <button type="button" className="ventas-cerrar" onClick={activarNotificaciones} title="Activar notificaciones del sistema">🔔 Activar avisos</button>
+          )}
 
           <button
             type="button"
@@ -2886,6 +3089,10 @@ window.onload = function () {
               }
               autoFocus
             />
+            <button type="button" onClick={() => setMostrarEscanerCamara(true)}
+              style={{ marginTop: 8, padding: "9px 13px", background: "#183a5b", color: "white", border: 0, borderRadius: 9, cursor: "pointer", fontWeight: 700 }}>
+              📷 Escanear código de barras
+            </button>
 
           </div>
 
@@ -3488,6 +3695,23 @@ window.onload = function () {
                   F5 · 🧾 Historial de ventas
                 </strong>
               </button>
+
+              <button type="button" style={estiloOpcionMenu} onClick={() => abrirConfiguracion("camara")}>
+                <strong>F6 · 📷 Configurar cámara</strong>
+                <span>Seleccionar webcam para escanear productos.</span>
+              </button>
+              <button type="button" style={estiloOpcionMenu} onClick={() => abrirConfiguracion("notificaciones")}>
+                <strong>F7 · 🔔 Notificaciones del sistema</strong>
+                <span>Activar permisos y probar avisos de Windows.</span>
+              </button>
+              <button type="button" style={estiloOpcionMenu} onClick={() => abrirConfiguracion("ubicacion")}>
+                <strong>F8 · 📍 Ubicación y clima</strong>
+                <span>Validar ubicación y actualizar el clima.</span>
+              </button>
+              <div style={{ ...estiloOpcionMenu, background: "#f1f5f9", color: "#64748b", cursor: "not-allowed" }} aria-disabled="true">
+                <strong>📱 Cámara del celular · Próximamente</strong>
+                <span>Conexión con teléfono pendiente de desarrollo.</span>
+              </div>
 
               <button type="button" style={estiloOpcionMenu}
                 onClick={() => {
@@ -4501,6 +4725,47 @@ window.onload = function () {
         </div>
       )}
 
+      {configuracionFunciones && (
+        <div role="dialog" aria-modal="true" aria-label="Configuración de funciones" style={{ position: "fixed", inset: 0, zIndex: 10020, background: "#0b182bd9", display: "grid", placeItems: "center", padding: 16 }}>
+          <section style={{ width: "min(440px, 100%)", background: "white", color: "#17243a", borderRadius: 16, padding: 22, boxShadow: "0 20px 60px #0004" }}>
+            <h2 style={{ marginTop: 0 }}>{configuracionFunciones === "camara" ? "📷 Configurar cámara" : configuracionFunciones === "notificaciones" ? "🔔 Notificaciones de Windows" : "📍 Ubicación y clima"}</h2>
+            {configuracionFunciones === "camara" && (
+              <>
+                <p>Selecciona la cámara que usará el lector de códigos de barras.</p>
+                <select aria-label="Seleccionar cámara" value={camaraElegida} onChange={(e) => setCamaraElegida(e.target.value)} style={{ width: "100%", padding: 12 }}>
+                  <option value="">Seleccionar cámara</option>
+                  {camarasConfiguracion.map((camara, i) => <option key={camara.deviceId} value={camara.deviceId}>{camara.label || `Cámara ${i + 1}`}</option>)}
+                </select>
+                <button type="button" disabled={!camaraElegida} onClick={() => { localStorage.setItem("pos-init-camara-preferida", camaraElegida); setMensajeConfiguracion("Cámara guardada. El escáner la utilizará al abrirse."); }} style={{ marginTop: 12, padding: 10 }}>Guardar cámara</button>
+                <p style={{ padding: 12, background: "#f1f5f9", color: "#64748b", borderRadius: 10 }}>📱 Cámara del celular — Próximamente</p>
+              </>
+            )}
+            {configuracionFunciones === "notificaciones" && (
+              <>
+                <p>Permiso de Chrome: <strong>{permisoNotificacion}</strong></p>
+                <button type="button" onClick={async () => { await activarNotificaciones(); setMensajeConfiguracion("Revisa el permiso de Chrome. Si lo autorizaste, prueba la notificación."); }} style={{ padding: 10, marginRight: 8 }}>Activar notificaciones</button>
+                <button type="button" onClick={probarNotificacion} disabled={permisoNotificacion !== "granted"} style={{ padding: 10 }}>Enviar prueba</button>
+                <p style={{ fontSize: 13 }}>El aviso automático de retiro utiliza el efectivo real de caja a partir de $3,000 MXN.</p>
+              </>
+            )}
+            {configuracionFunciones === "ubicacion" && (
+              <>
+                <p>Actualiza el clima y la hora de la barra superior. Chrome puede solicitar permiso de ubicación.</p>
+                <button type="button" onClick={() => { setActualizacionClima((n) => n + 1); setMensajeConfiguracion("Actualizando ubicación y clima en la barra superior..."); }} style={{ padding: 10 }}>📍 Validar y actualizar ubicación</button>
+              </>
+            )}
+            {mensajeConfiguracion && <p role="status" style={{ fontSize: 13 }}>{mensajeConfiguracion}</p>}
+            <button type="button" onClick={() => setConfiguracionFunciones(null)} style={{ display: "block", marginTop: 20, padding: "10px 16px" }}>Cerrar</button>
+          </section>
+        </div>
+      )}
+
+      {mostrarEscanerCamara && (
+        <EscanerProductos productos={productos} onProducto={(producto) => {
+          agregarProducto(producto);
+          setMostrarEscanerCamara(false);
+        }} onCerrar={() => setMostrarEscanerCamara(false)} />
+      )}
     </main>
   );
 }
