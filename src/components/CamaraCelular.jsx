@@ -10,12 +10,8 @@ import { db } from "../firebase/firebaseConfig";
 
 const SERVIDORES = {
   iceServers: [
-    {
-      urls: "stun:stun.l.google.com:19302",
-    },
-    {
-      urls: "stun:stun1.l.google.com:19302",
-    },
+    { urls: "stun:stun.l.google.com:19302" },
+    { urls: "stun:stun1.l.google.com:19302" },
   ],
 };
 
@@ -28,20 +24,14 @@ export default function CamaraCelular() {
     "Listo para conectar"
   );
 
-  const [transmitiendo, setTransmitiendo] =
-    useState(false);
+  const [transmitiendo, setTransmitiendo] = useState(false);
 
   const parametros = new URLSearchParams(
     window.location.search
   );
 
-  const sesionId = parametros.get(
-    "camaraCelular"
-  );
-
-  const ownerUid = parametros.get(
-    "owner"
-  );
+  const sesionId = parametros.get("camaraCelular");
+  const ownerUid = parametros.get("owner");
 
   function detener() {
     streamRef.current
@@ -58,7 +48,6 @@ export default function CamaraCelular() {
     }
 
     setTransmitiendo(false);
-
     setEstado("Transmisión detenida");
   }
 
@@ -74,25 +63,22 @@ export default function CamaraCelular() {
 
   async function iniciar() {
     if (!ownerUid || !sesionId) {
-      setEstado(
-        "Enlace de conexión inválido."
-      );
+      setEstado("Enlace de conexión inválido.");
       return;
     }
 
     if (
-      !navigator.mediaDevices?.getUserMedia
+      !navigator.mediaDevices?.getUserMedia ||
+      !window.RTCPeerConnection
     ) {
       setEstado(
-        "El navegador no permite acceder a la cámara."
+        "El navegador no admite la cámara o WebRTC."
       );
       return;
     }
 
     try {
-      setEstado(
-        "Solicitando cámara trasera..."
-      );
+      setEstado("Solicitando cámara trasera...");
 
       const referencia = doc(
         db,
@@ -102,13 +88,11 @@ export default function CamaraCelular() {
         sesionId
       );
 
-      const snapshot = await getDoc(
-        referencia
-      );
+      const snapshot = await getDoc(referencia);
 
       if (!snapshot.exists()) {
         throw new Error(
-          "La sesión no existe."
+          "La sesión no existe o no tienes permiso."
         );
       }
 
@@ -116,28 +100,21 @@ export default function CamaraCelular() {
 
       if (
         !datos.oferta ||
-        Date.now() > Number(
-          datos.venceEn || 0
-        )
+        Date.now() > Number(datos.venceEn || 0)
       ) {
-        throw new Error(
-          "La sesión ha expirado."
-        );
+        throw new Error("La sesión ha expirado.");
       }
 
       const stream =
         await navigator.mediaDevices.getUserMedia({
           audio: false,
-
           video: {
             facingMode: {
               ideal: "environment",
             },
-
             width: {
               ideal: 1920,
             },
-
             height: {
               ideal: 1080,
             },
@@ -147,86 +124,55 @@ export default function CamaraCelular() {
       streamRef.current = stream;
 
       if (videoRef.current) {
-        videoRef.current.srcObject =
-          stream;
-
+        videoRef.current.srcObject = stream;
         await videoRef.current.play();
       }
 
-      const pc = new RTCPeerConnection(
-        SERVIDORES
-      );
+      const pc = new RTCPeerConnection(SERVIDORES);
 
       conexionRef.current = pc;
 
-      stream
-        .getTracks()
-        .forEach((track) => {
-          pc.addTrack(track, stream);
-        });
+      stream.getTracks().forEach((track) => {
+        pc.addTrack(track, stream);
+      });
 
       pc.onconnectionstatechange = () => {
-        if (
-          pc.connectionState === "connected"
-        ) {
-          setEstado(
-            "🔴 Transmitiendo a POS Init"
-          );
-        }
-
-        if (
+        if (pc.connectionState === "connected") {
+          setTransmitiendo(true);
+          setEstado("🔴 Transmitiendo a POS Init");
+        } else if (
+          pc.connectionState === "failed" ||
           pc.connectionState === "disconnected"
         ) {
+          setTransmitiendo(false);
           setEstado(
-            "Conexión interrumpida"
-          );
-        }
-
-        if (
-          pc.connectionState === "failed"
-        ) {
-          setEstado(
-            "Falló la conexión por internet"
+            "Conexión interrumpida. Revisa la computadora."
           );
         }
       };
 
       await pc.setRemoteDescription(
-        new RTCSessionDescription(
-          datos.oferta
-        )
+        new RTCSessionDescription(datos.oferta)
       );
 
-      const respuesta =
-        await pc.createAnswer();
+      const respuesta = await pc.createAnswer();
 
-      await pc.setLocalDescription(
-        respuesta
-      );
+      await pc.setLocalDescription(respuesta);
 
-      await new Promise((resolver) => {
-        if (
-          pc.iceGatheringState ===
-          "complete"
-        ) {
-          resolver();
+      await new Promise((resolve) => {
+        if (pc.iceGatheringState === "complete") {
+          resolve();
           return;
         }
 
-        const timeout = setTimeout(
-          resolver,
-          8000
-        );
+        const timeout = setTimeout(resolve, 8000);
 
         pc.addEventListener(
           "icegatheringstatechange",
           () => {
-            if (
-              pc.iceGatheringState ===
-              "complete"
-            ) {
+            if (pc.iceGatheringState === "complete") {
               clearTimeout(timeout);
-              resolver();
+              resolve();
             }
           }
         );
@@ -234,34 +180,28 @@ export default function CamaraCelular() {
 
       await updateDoc(referencia, {
         respuesta: {
-          type:
-            pc.localDescription.type,
-
-          sdp:
-            pc.localDescription.sdp,
+          type: pc.localDescription.type,
+          sdp: pc.localDescription.sdp,
         },
-
         estado: "conectando",
       });
 
-      setTransmitiendo(true);
-
-      setEstado(
-        "Conectando con la computadora..."
-      );
+      setEstado("Conectando con la computadora...");
     } catch (error) {
-      console.error(
-        "POS Init - Cámara celular:",
-        error
-      );
-
       detener();
-
-      setEstado(
-        `Error: ${error.message}`
-      );
+      setEstado(`Error: ${error.message}`);
     }
   }
+
+  const boton = {
+    width: "100%",
+    padding: 17,
+    color: "#fff",
+    border: "none",
+    borderRadius: 16,
+    fontSize: 17,
+    fontWeight: 900,
+  };
 
   return (
     <main
@@ -273,13 +213,10 @@ export default function CamaraCelular() {
         overflow: "hidden",
         background: "#020817",
         color: "#fff",
-        fontFamily:
-          "Arial, sans-serif",
+        fontFamily: "Arial, sans-serif",
         zIndex: 99999,
       }}
     >
-      {/* VIDEO A PANTALLA COMPLETA */}
-
       <video
         ref={videoRef}
         autoPlay
@@ -295,53 +232,33 @@ export default function CamaraCelular() {
         }}
       />
 
-      {/* SOMBRA SUPERIOR */}
-
       <div
         style={{
           position: "absolute",
-          top: 0,
-          left: 0,
-          right: 0,
-          height: 160,
+          inset: 0,
           background:
-            "linear-gradient(to bottom, rgba(0,0,0,.85), transparent)",
+            "linear-gradient(to bottom, #0009, transparent 30%, transparent 70%, #000c)",
           pointerEvents: "none",
         }}
       />
 
-      {/* ENCABEZADO */}
-
       <header
         style={{
           position: "absolute",
-          top: "max(18px, env(safe-area-inset-top))",
-          left: 18,
-          right: 18,
+          top: "max(20px, env(safe-area-inset-top))",
+          left: 20,
+          right: 20,
           display: "flex",
-          justifyContent:
-            "space-between",
+          justifyContent: "space-between",
           alignItems: "center",
-          gap: 12,
         }}
       >
         <div>
-          <strong
-            style={{
-              fontSize: 22,
-              fontWeight: 900,
-            }}
-          >
+          <strong style={{ fontSize: 22 }}>
             📱 POS Init
           </strong>
 
-          <div
-            style={{
-              fontSize: 12,
-              opacity: 0.8,
-              marginTop: 4,
-            }}
-          >
+          <div style={{ fontSize: 12 }}>
             Escáner inalámbrico
           </div>
         </div>
@@ -350,12 +267,9 @@ export default function CamaraCelular() {
           style={{
             padding: "8px 12px",
             borderRadius: 30,
-            background:
-              transmitiendo
-                ? "rgba(16,185,129,.9)"
-                : "rgba(30,41,59,.9)",
-            fontSize: 12,
-            fontWeight: 800,
+            background: transmitiendo
+              ? "#059669"
+              : "#334155",
           }}
         >
           {transmitiendo
@@ -364,22 +278,16 @@ export default function CamaraCelular() {
         </span>
       </header>
 
-      {/* GUÍA PARA ESCANEAR */}
-
       <div
         style={{
           position: "absolute",
           left: "8%",
           right: "8%",
           top: "50%",
-          transform:
-            "translateY(-50%)",
+          transform: "translateY(-50%)",
           height: 170,
-          border:
-            "2px solid #22d3ee",
+          border: "2px solid #22d3ee",
           borderRadius: 22,
-          boxShadow:
-            "0 0 0 999px rgba(0,0,0,.12)",
           pointerEvents: "none",
         }}
       >
@@ -391,13 +299,10 @@ export default function CamaraCelular() {
             top: "50%",
             height: 2,
             background: "#22d3ee",
-            boxShadow:
-              "0 0 16px #22d3ee",
+            boxShadow: "0 0 16px #22d3ee",
           }}
         />
       </div>
-
-      {/* INDICACIÓN */}
 
       <div
         style={{
@@ -406,18 +311,11 @@ export default function CamaraCelular() {
           left: 20,
           right: 20,
           textAlign: "center",
-          fontSize: 14,
-          fontWeight: 700,
-          textShadow:
-            "0 2px 8px #000",
-          pointerEvents: "none",
+          textShadow: "0 2px 8px #000",
         }}
       >
-        Coloca el código de barras
-        dentro del recuadro
+        Coloca el código de barras dentro del recuadro
       </div>
-
-      {/* PANEL INFERIOR */}
 
       <footer
         style={{
@@ -428,15 +326,13 @@ export default function CamaraCelular() {
           padding:
             "24px 20px max(28px, env(safe-area-inset-bottom))",
           background:
-            "linear-gradient(to top, rgba(0,0,0,.95), rgba(0,0,0,.3))",
+            "linear-gradient(to top, #000e, transparent)",
         }}
       >
         <p
           role="status"
           style={{
             textAlign: "center",
-            fontSize: 14,
-            marginBottom: 16,
           }}
         >
           {estado}
@@ -447,16 +343,8 @@ export default function CamaraCelular() {
             type="button"
             onClick={iniciar}
             style={{
-              width: "100%",
-              padding: 17,
-              background:
-                "linear-gradient(135deg, #06b6d4, #2563eb)",
-              color: "#fff",
-              border: "none",
-              borderRadius: 16,
-              fontSize: 17,
-              fontWeight: 900,
-              cursor: "pointer",
+              ...boton,
+              background: "#2563eb",
             }}
           >
             📷 Iniciar cámara
@@ -466,15 +354,8 @@ export default function CamaraCelular() {
             type="button"
             onClick={detener}
             style={{
-              width: "100%",
-              padding: 17,
+              ...boton,
               background: "#dc2626",
-              color: "#fff",
-              border: "none",
-              borderRadius: 16,
-              fontSize: 17,
-              fontWeight: 900,
-              cursor: "pointer",
             }}
           >
             ⏹ Detener transmisión

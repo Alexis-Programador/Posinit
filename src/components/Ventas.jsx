@@ -285,12 +285,29 @@ function Ventas({
     setMontoRetiro,
   ] = useState("");
 
+  const montoRetiroInputRef = useRef(null);
   const LIMITE_RETIRO = 3000;
 
   const [camaraActiva, setCamaraActiva] = useState(true);
   const [modoCamara, setModoCamara] = useState("usb");
   const [streamRemoto, setStreamRemoto] = useState(null);
   const [vinculandoCelular, setVinculandoCelular] = useState(false);
+  const [mostrarPanelConexion, setMostrarPanelConexion] = useState(false);
+  const [posicionConfig, setPosicionConfig] = useState({ x: 0, y: 0 });
+  const arrastreConfigRef = useRef(null);
+  const iniciarArrastreConfig = (e) => {
+    if (e.button !== 0 || e.target.closest("button, input, select")) return;
+    arrastreConfigRef.current = { x: e.clientX, y: e.clientY, ...posicionConfig };
+    e.currentTarget.setPointerCapture(e.pointerId);
+  };
+  const moverConfig = (e) => {
+    const inicio = arrastreConfigRef.current;
+    if (!inicio) return;
+    setPosicionConfig({
+      x: Math.max(-window.innerWidth / 3, Math.min(window.innerWidth / 3, inicio.x + e.clientX - inicio.x)),
+      y: Math.max(-window.innerHeight / 3, Math.min(window.innerHeight / 3, inicio.y + e.clientY - inicio.y)),
+    });
+  };
   const [configuracionFunciones, setConfiguracionFunciones] = useState(null);
   const [actualizacionClima, setActualizacionClima] = useState(0);
   const [cancelacionClima, setCancelacionClima] = useState(0);
@@ -302,6 +319,7 @@ function Ventas({
   const abrirConfiguracion = (tipo) => {
     setMostrarMenu(false);
     setMensajeConfiguracion("");
+    setPosicionConfig({ x: 0, y: 0 });
     setConfiguracionFunciones(tipo);
   };
   useEffect(() => {
@@ -707,9 +725,10 @@ function Ventas({
     async () => {
       if (procesandoRetiro) return;
 
-      const monto = montoRetiro.trim() === "" ? NaN : Number(montoRetiro);
+      const textoMonto = String(montoRetiroInputRef.current?.value ?? montoRetiro).trim();
+      const monto = textoMonto === "" ? NaN : Number(textoMonto.replace(",", "."));
 
-      if (!Number.isFinite(monto) || monto <= 0 || Math.round(monto * 100) !== monto * 100) {
+      if (!Number.isFinite(monto) || monto <= 0 || Math.abs(Math.round(monto * 100) - monto * 100) > 0.000001) {
         setError("Escribe una cantidad válida para retirar.");
         return;
       }
@@ -2788,12 +2807,6 @@ window.onload = function () {
     }
 
     const manejarRetiro = (event) => {
-      if (event.key === "Enter") {
-        event.preventDefault();
-        realizarRetiro();
-        return;
-      }
-
       if (event.key === "Escape") {
         event.preventDefault();
 
@@ -3807,7 +3820,19 @@ window.onload = function () {
             padding: "20px",
           }}
         >
-          <section
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              if (!procesandoRetiro) realizarRetiro();
+            }}
+            onKeyDownCapture={(e) => {
+              if (e.key === "Enter" && !e.repeat) {
+                e.preventDefault();
+                e.stopPropagation();
+                if (!procesandoRetiro) realizarRetiro();
+              }
+            }}
             style={{
               width: "min(520px, 100%)",
               background: "#fff",
@@ -3846,16 +3871,17 @@ window.onload = function () {
               <div style={{ display: "grid", gridTemplateColumns: "1fr 180px", gap: "12px", alignItems: "center" }}>
                 <span>Retiro</span>
                 <input
-                  type="number"
-                  min="0.01"
-                  max={efectivoEnCaja}
-                  step="1"
+                  ref={montoRetiroInputRef}
+                  type="text"
+                  inputMode="decimal"
+                  autoComplete="off"
                   value={montoRetiro}
                   onChange={(e) => {
                     setMontoRetiro(e.target.value);
                     setError("");
                   }}
                   onFocus={(e) => e.target.select()}
+                  onWheel={(e) => e.currentTarget.blur()}
                   autoFocus
                   style={{
                     width: "100%",
@@ -3908,9 +3934,8 @@ window.onload = function () {
               </button>
 
               <button
-                type="button"
+                type="submit"
                 disabled={procesandoRetiro}
-                onClick={realizarRetiro}
                 style={{
                   minHeight: "52px",
                   border: "none",
@@ -3926,7 +3951,7 @@ window.onload = function () {
                   : "Enter · Confirmar retiro"}
               </button>
             </div>
-          </section>
+          </form>
         </div>
       )}
 
@@ -4756,15 +4781,15 @@ window.onload = function () {
         </div>
       )}
 
-              {vinculandoCelular && (
-          <div style={configuracionFunciones === "camara" ? {position:"fixed",zIndex:10030,top:"50%",left:"50%",transform:"translate(-50%, -5%)",width:"min(520px,94vw)",maxHeight:"78vh",overflowY:"auto",background:"#fff",color:"#14243a",border:"1px solid #cbd5e1",borderRadius:16,boxShadow:"0 15px 50px #0008"} : {display:"none"}}>
-            <CamaraRemota ownerUid={ownerUid} usuarioId={usuario?.id} onStream={(stream)=>{setStreamRemoto(stream);if(stream){setModoCamara("celular");setCamaraActiva(true);}else{setModoCamara("usb");}}} onCerrar={()=>{setVinculandoCelular(false);setStreamRemoto(null);setModoCamara("usb");}} />
+              {(vinculandoCelular || mostrarPanelConexion) && (
+          <div style={configuracionFunciones === "camara" && mostrarPanelConexion ? {position:"fixed",zIndex:10030,top:"max(12px, 5vh)",left:"50%",transform:"translateX(-50%)",width:"min(520px,94vw)",maxHeight:"90dvh",overflowY:"auto",background:"#fff",color:"#14243a",border:"1px solid #cbd5e1",borderRadius:16,boxShadow:"0 15px 50px #0008"} : {display:"none"}}>
+            <CamaraRemota ownerUid={ownerUid} usuarioId={usuario?.id} onStream={(stream)=>{setStreamRemoto(stream);if(stream){setModoCamara("celular");setCamaraActiva(true);}else{setModoCamara("usb");}}} onCerrar={()=>setMostrarPanelConexion(false)} />
           </div>
         )}
 {configuracionFunciones && (
         <div role="dialog" aria-modal="true" aria-label="Configuración de funciones" style={{ position: "fixed", inset: 0, zIndex: 10020, background: "#0b182bd9", display: "grid", placeItems: "center", padding: 16 }}>
-          <section style={{ width: "min(440px, 100%)", background: "white", color: "#17243a", borderRadius: 16, padding: 22, boxShadow: "0 20px 60px #0004" }}>
-            <h2 style={{ marginTop: 0 }}>{configuracionFunciones === "camara" ? "📷 Configurar cámara" : configuracionFunciones === "notificaciones" ? "🔔 Notificaciones de Windows" : "📍 Ubicación y clima"}</h2>
+          <section style={{ width: "min(440px, 100%)", maxHeight: "90dvh", overflowY: "auto", background: "white", color: "#17243a", borderRadius: 16, padding: 22, boxShadow: "0 20px 60px #0004", transform: `translate(${posicionConfig.x}px, ${posicionConfig.y}px)` }}>
+            <h2 onPointerDown={iniciarArrastreConfig} onPointerMove={moverConfig} onPointerUp={() => { arrastreConfigRef.current = null; }} onPointerCancel={() => { arrastreConfigRef.current = null; }} style={{ marginTop: 0, cursor: "move", touchAction: "none", userSelect: "none" }}>{configuracionFunciones === "camara" ? "📷 Configurar cámara" : configuracionFunciones === "notificaciones" ? "🔔 Notificaciones de Windows" : "📍 Ubicación y clima"}</h2>
             {configuracionFunciones === "camara" && (
               <>
                 <p>Selecciona la cámara que usará el lector de códigos de barras.</p>
@@ -4773,8 +4798,8 @@ window.onload = function () {
                   {camarasConfiguracion.map((camara, i) => <option key={camara.deviceId} value={camara.deviceId}>{camara.label || `Cámara ${i + 1}`}</option>)}
                 </select>
                 <button type="button" disabled={!camaraElegida} onClick={() => { localStorage.setItem("pos-init-camara-preferida", camaraElegida); setMensajeConfiguracion("Cámara guardada. El escáner la utilizará al abrirse."); }} style={{ marginTop: 12, padding: 10 }}>Guardar cámara</button>
-                <p><button type="button" onClick={()=>{localStorage.setItem("pos-init-camara-preferida",camaraElegida);setModoCamara("usb");setVinculandoCelular(false);setStreamRemoto(null);setCamaraActiva(true);setConfiguracionFunciones(null);}}>Usar cámara USB</button></p>
-                <button type="button" onClick={()=>{setVinculandoCelular(true);setCamaraActiva(true);}}>📱 Conectar celular por internet</button>
+                <p><button type="button" onClick={()=>{localStorage.setItem("pos-init-camara-preferida",camaraElegida);setModoCamara("usb");setMostrarPanelConexion(false);setCamaraActiva(true);setConfiguracionFunciones(null);}}>Usar cámara USB</button></p>
+                <button type="button" onClick={()=>{setVinculandoCelular(true);setMostrarPanelConexion(true);setCamaraActiva(true);}}>📱 Conectar celular por internet</button>
                 <p style={{fontSize:12,background:"#eff6ff",padding:10,borderRadius:8}}>🔗 Vincular app POS Init: próximamente. La conexión actual funciona por enlace o QR.</p>
                 <p style={{fontSize:12}}>La vinculación continúa aunque cierres F6. El celular debe tener iniciada la sesión del mismo negocio.</p>
               </>
