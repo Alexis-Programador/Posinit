@@ -5253,3 +5253,68 @@ body:has(.pagina-pin-seguro),
     flex: 0 0 180px !important;
   }
 }
+
+
+/* ============================================================
+   POS INIT - AJUSTE FINAL DE ENCABEZADO Y PANEL DE VENTA
+   31/10/2026 | Sin cambios en la logica ni en tarjetas.
+   ============================================================ */
+@media (min-width: 1101px) {
+  /* Empujar buscador y camara hacia la derecha sin tapar el menu. */
+  .ventas-pagina > .ventas-header { gap: 12px !important; }
+  .ventas-pagina .pos-ventas-herramientas {
+    margin-left: auto !important;
+    flex: 0 1 830px !important;
+    width: auto !important;
+    max-width: 830px !important;
+    min-width: 0 !important;
+    gap: 10px !important;
+    justify-content: flex-end !important;
+  }
+  .ventas-pagina .pos-ventas-buscador {
+    flex: 1 1 290px !important;
+    min-width: 180px !important;
+    max-width: 560px !important;
+  }
+  .ventas-pagina .pos-ventas-camara { flex-shrink: 0 !important; }
+  .ventas-pagina .ventas-header-acciones { margin-left: 12px !important; }
+}
+@media (min-width: 801px) {
+  /* Ampliar venta actual y aprovechar TODA la altura hasta el pie. */
+  .ventas-pagina > .ventas-contenido {
+    grid-template-columns: minmax(0, 1fr) clamp(380px, 27vw, 470px) !important;
+    align-items: stretch !important;
+    min-height: 0 !important;
+  }
+  .ventas-pagina .carrito {
+    align-self: stretch !important;
+    height: 100% !important;
+    min-height: 0 !important;
+    max-height: 100% !important;
+    margin: 0 !important;
+    border-radius: 0 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    overflow: hidden !important;
+  }
+  .ventas-pagina .carrito-productos {
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
+    overflow-y: auto !important;
+  }
+  .ventas-pagina .carrito-resumen {
+    margin-top: auto !important;
+    flex: 0 0 auto !important;
+  }
+  .ventas-pagina .boton-cobrar { flex-shrink: 0 !important; }
+}
+@media (min-width: 801px) and (max-width: 1100px) {
+  .ventas-pagina .pos-ventas-herramientas {
+    margin-left: auto !important;
+    max-width: none !important;
+  }
+  .ventas-pagina > .ventas-contenido {
+    grid-template-columns: minmax(0, 1fr) 365px !important;
+  }
+}
+/* En movil, conservar una sola columna y el flujo vertical existente. */
