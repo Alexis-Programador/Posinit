@@ -4582,3 +4582,189 @@ body:has(.pagina-pin-seguro),
   .catalogo-superior .pos-camara-cabecera { justify-content: stretch; flex-wrap: wrap; }
   .pos-camara-integrada { flex: 1 1 210px; }
 }
+
+
+
+/* ==============================================================
+   POS INIT | DISEÑO RESPONSIVO DE ACCESO - 31 OCT 2026
+   Solo afecta Activar caja, Acceso a caja e Ingresar PIN.
+   No modifica Ventas ni los demás componentes.
+   ============================================================== */
+
+@media (min-width: 901px) {
+  html:has(.pagina-acceso-caja), body:has(.pagina-acceso-caja),
+  #root:has(.pagina-acceso-caja),
+  html:has(.pagina-activar-caja), body:has(.pagina-activar-caja),
+  #root:has(.pagina-activar-caja),
+  html:has(.pagina-pin-seguro), body:has(.pagina-pin-seguro),
+  #root:has(.pagina-pin-seguro) {
+    height: auto !important;
+    min-height: 100% !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+  }
+}
+
+/* Los paneles dejan de extenderse a toda la altura del monitor. */
+.pagina-login.pagina-acceso-caja,
+.pagina-login.pagina-activar-caja,
+.pagina-pin-seguro {
+  position: relative !important;
+  inset: auto !important;
+  width: 100% !important;
+  height: auto !important;
+  min-height: 100dvh !important;
+  padding: clamp(16px, 3vw, 40px) !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+.pagina-acceso-caja > .acceso-tres-paneles,
+.pagina-activar-caja > .login-contenedor,
+.pagina-pin-seguro > .pin-tres-paneles {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) minmax(340px, 420px) minmax(0, 1fr) !important;
+  grid-template-rows: auto !important;
+  width: 100% !important;
+  max-width: 1220px !important;
+  height: auto !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  gap: clamp(12px, 1.6vw, 20px) !important;
+  align-items: stretch !important;
+  margin: 0 auto !important;
+}
+
+.pagina-acceso-caja .acceso-tres-paneles > *,
+.pagina-activar-caja .login-contenedor > *,
+.pagina-pin-seguro .pin-tres-paneles > * {
+  position: relative !important;
+  grid-row: auto !important;
+  height: auto !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  margin: 0 !important;
+  overflow-x: hidden !important;
+  overflow-y: visible !important;
+  border-radius: 20px !important;
+}
+
+.pagina-acceso-caja .acceso-tres-paneles > :nth-child(1) { grid-column: 1 !important; }
+.pagina-acceso-caja .acceso-tres-paneles > :nth-child(2) { grid-column: 2 !important; }
+.pagina-acceso-caja .acceso-tres-paneles > :nth-child(3) { grid-column: 3 !important; }
+
+.pagina-acceso-caja .acceso-panel-info,
+.pagina-activar-caja .login-panel-bienvenida,
+.pagina-activar-caja .login-panel-informacion,
+.pagina-pin-seguro .pin-panel-lateral {
+  padding: clamp(18px, 2vw, 26px) !important;
+  gap: 10px !important;
+  justify-content: flex-start !important;
+}
+
+.pagina-acceso-caja .acceso-info-nota,
+.pagina-pin-seguro .pin-panel-pie {
+  margin-top: auto !important;
+  padding-top: 14px !important;
+}
+
+.pagina-acceso-caja .tarjeta-login,
+.pagina-activar-caja .tarjeta-login,
+.pagina-pin-seguro .pin-panel-central {
+  padding: clamp(22px, 2.2vw, 30px) !important;
+  align-self: stretch !important;
+  justify-content: center !important;
+  box-shadow: 0 20px 60px rgba(0,0,0,.18) !important;
+}
+
+.pagina-acceso-caja .tarjeta-login .marca,
+.pagina-activar-caja .tarjeta-login .marca { margin-bottom: 20px !important; }
+.pagina-acceso-caja .tarjeta-login .encabezado,
+.pagina-activar-caja .tarjeta-login .encabezado { margin-bottom: 18px !important; }
+.pagina-acceso-caja .tarjeta-login form input,
+.pagina-activar-caja .tarjeta-login form input { height: 48px !important; }
+.pagina-acceso-caja .tarjeta-login form > button[type="submit"],
+.pagina-activar-caja .tarjeta-login form > button[type="submit"] {
+  min-height: 48px !important;
+}
+
+.pagina-pin-seguro .pin-panel-central > .marca { margin-bottom: 12px !important; }
+.pagina-pin-seguro .login-pin { width: 100% !important; }
+.pagina-pin-seguro .usuario-login { margin-bottom: 16px !important; }
+.pagina-pin-seguro .encabezado-pin { margin-bottom: 14px !important; }
+.pagina-pin-seguro .pin-panel-central .boton-regresar { margin-bottom: 12px !important; }
+
+/* Tabletas: formulario primero, ayuda en tarjetas debajo. */
+@media (max-width: 900px) {
+  .pagina-login.pagina-acceso-caja,
+  .pagina-login.pagina-activar-caja,
+  .pagina-pin-seguro {
+    position: relative !important;
+    inset: auto !important;
+    width: 100% !important;
+    height: auto !important;
+    min-height: 100dvh !important;
+    padding: 18px 14px !important;
+    overflow: visible !important;
+  }
+  .pagina-acceso-caja > .acceso-tres-paneles,
+  .pagina-activar-caja > .login-contenedor,
+  .pagina-pin-seguro > .pin-tres-paneles {
+    display: flex !important;
+    flex-direction: column !important;
+    width: 100% !important;
+    max-width: 560px !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    gap: 14px !important;
+    margin: 0 auto !important;
+  }
+  .pagina-acceso-caja .acceso-tres-paneles > *,
+  .pagina-activar-caja .login-contenedor > *,
+  .pagina-pin-seguro .pin-tres-paneles > * {
+    position: relative !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    width: 100% !important;
+    margin: 0 !important;
+    overflow: visible !important;
+    border-radius: 18px !important;
+  }
+  .pagina-acceso-caja .tarjeta-login,
+  .pagina-activar-caja .tarjeta-login,
+  .pagina-pin-seguro .pin-panel-central { order: 0 !important; padding: 24px !important; }
+  .pagina-acceso-caja .acceso-panel-info:first-child,
+  .pagina-activar-caja .login-panel-bienvenida,
+  .pagina-pin-seguro .pin-panel-lateral:first-child { order: 1 !important; }
+  .pagina-acceso-caja .acceso-panel-info:last-child,
+  .pagina-activar-caja .login-panel-informacion,
+  .pagina-pin-seguro .pin-panel-lateral:last-child { order: 2 !important; }
+  .pagina-acceso-caja .acceso-panel-info,
+  .pagina-activar-caja .login-panel-bienvenida,
+  .pagina-activar-caja .login-panel-informacion,
+  .pagina-pin-seguro .pin-panel-lateral {
+    padding: 20px !important;
+    gap: 8px !important;
+    justify-content: flex-start !important;
+  }
+  .pagina-acceso-caja .acceso-info-nota,
+  .pagina-pin-seguro .pin-panel-pie { margin-top: 12px !important; }
+}
+
+@media (max-width: 480px) {
+  .pagina-login.pagina-acceso-caja,
+  .pagina-login.pagina-activar-caja,
+  .pagina-pin-seguro { padding: 12px !important; }
+  .pagina-acceso-caja .tarjeta-login,
+  .pagina-activar-caja .tarjeta-login,
+  .pagina-pin-seguro .pin-panel-central { padding: 20px 18px !important; }
+  .pagina-acceso-caja .tarjeta-login input,
+  .pagina-activar-caja .tarjeta-login input,
+  .pagina-pin-seguro .pin-panel-central input { max-width: 100% !important; font-size: 16px !important; }
+}
