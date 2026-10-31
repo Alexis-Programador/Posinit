@@ -10,15 +10,12 @@ import {
 } from "firebase/firestore";
 
 import { db } from "../firebase/firebaseConfig";
+import { QRCodeSVG } from "qrcode.react";
 
 const SERVIDORES = {
   iceServers: [
-    {
-      urls: "stun:stun.l.google.com:19302",
-    },
-    {
-      urls: "stun:stun1.l.google.com:19302",
-    },
+    { urls: "stun:stun.l.google.com:19302" },
+    { urls: "stun:stun1.l.google.com:19302" },
   ],
 };
 
@@ -31,14 +28,19 @@ export default function CamaraRemota({
   const cancelarRef = useRef(null);
   const sesionRef = useRef(null);
   const onStreamRef = useRef(onStream);
+  const operacionRef = useRef(0);
 
   const [url, setUrl] = useState("");
   const [estado, setEstado] = useState("Sin conectar");
   const [sesionId, setSesionId] = useState("");
+  const [conectado, setConectado] = useState(false);
+  const [generando, setGenerando] = useState(false);
 
   onStreamRef.current = onStream;
 
   async function desconectar() {
+    operacionRef.current += 1;
+
     cancelarRef.current?.();
     cancelarRef.current = null;
 
@@ -52,6 +54,8 @@ export default function CamaraRemota({
 
     setSesionId("");
     setUrl("");
+    setConectado(false);
+    setGenerando(false);
     setEstado("Desconectado");
 
     if (referencia) {
@@ -59,7 +63,7 @@ export default function CamaraRemota({
         await deleteDoc(referencia);
       } catch (error) {
         console.warn(
-          "No se pudo eliminar la sesión:",
+          "POS Init - No se pudo eliminar la sesión:",
           error
         );
       }
@@ -68,8 +72,9 @@ export default function CamaraRemota({
 
   useEffect(() => {
     return () => {
-      cancelarRef.current?.();
+      operacionRef.current += 1;
 
+      cancelarRef.current?.();
       conexionRef.current?.close();
 
       onStreamRef.current?.(null);
@@ -89,9 +94,16 @@ export default function CamaraRemota({
       return;
     }
 
+    if (generando) return;
+
+    setGenerando(true);
+
     await desconectar();
 
+    const operacion = ++operacionRef.current;
+
     try {
+      setGenerando(true);
       setEstado("Creando conexión...");
 
       const referencia = doc(
@@ -106,7 +118,6 @@ export default function CamaraRemota({
       sesionRef.current = referencia;
 
       const pc = new RTCPeerConnection(SERVIDORES);
-
       conexionRef.current = pc;
 
       pc.addTransceiver("video", {
@@ -114,17 +125,20 @@ export default function CamaraRemota({
       });
 
       pc.ontrack = (evento) => {
+        if (operacion !== operacionRef.current) return;
+
         const stream =
           evento.streams?.[0] ||
           new MediaStream([evento.track]);
 
         onStreamRef.current?.(stream);
-
-        setEstado("📱 Cámara del celular conectada");
       };
 
       pc.onconnectionstatechange = () => {
+        if (operacion !== operacionRef.current) return;
+
         if (pc.connectionState === "connected") {
+          setConectado(true);
           setEstado("📱 Celular conectado");
         }
 
@@ -133,18 +147,18 @@ export default function CamaraRemota({
           pc.connectionState === "failed" ||
           pc.connectionState === "closed"
         ) {
+          setConectado(false);
           onStreamRef.current?.(null);
 
           setEstado(
             pc.connectionState === "failed"
-              ? "Falló la conexión con el celular"
-              : "Celular desconectado"
+              ? "Falló la conexión con el celular."
+              : "Celular desconectado."
           );
         }
       };
 
       const oferta = await pc.createOffer();
-
       await pc.setLocalDescription(oferta);
 
       await new Promise((resolver) => {
@@ -166,6 +180,8 @@ export default function CamaraRemota({
         );
       });
 
+      if (operacion !== operacionRef.current) return;
+
       await setDoc(referencia, {
         ownerUid,
         estado: "esperando",
@@ -178,10 +194,17 @@ export default function CamaraRemota({
         venceEn: Date.now() + 5 * 60 * 1000,
       });
 
+      if (operacion !== operacionRef.current) return;
+
       cancelarRef.current = onSnapshot(
         referencia,
         async (snapshot) => {
-          if (!snapshot.exists()) return;
+          if (
+            operacion !== operacionRef.current ||
+            !snapshot.exists()
+          ) {
+            return;
+          }
 
           const datos = snapshot.data();
 
@@ -196,18 +219,24 @@ export default function CamaraRemota({
                 )
               );
 
-              setEstado("Conectando video...");
+              if (operacion === operacionRef.current) {
+                setEstado("Conectando video...");
+              }
             } catch (error) {
-              setEstado(
-                `Error WebRTC: ${error.message}`
-              );
+              if (operacion === operacionRef.current) {
+                setEstado(
+                  `Error WebRTC: ${error.message}`
+                );
+              }
             }
           }
         },
         (error) => {
-          setEstado(
-            `Error de sesión: ${error.message}`
-          );
+          if (operacion === operacionRef.current) {
+            setEstado(
+              `Error de sesión: ${error.message}`
+            );
+          }
         }
       );
 
@@ -221,26 +250,24 @@ export default function CamaraRemota({
         referencia.id
       );
 
-      destino.searchParams.set(
-        "owner",
-        ownerUid
-      );
+      destino.searchParams.set("owner", ownerUid);
 
       setSesionId(referencia.id);
       setUrl(destino.toString());
-
-      setEstado(
-        "Conexión preparada. Abre el enlace en POS Init desde el celular."
-      );
+      setEstado("Escanea el QR para conectar el celular.");
     } catch (error) {
-      console.error(
-        "POS Init - Conexión remota:",
-        error
-      );
+      if (operacion === operacionRef.current) {
+        console.error(
+          "POS Init - Conexión remota:",
+          error
+        );
 
-      setEstado(
-        `Error: ${error.message}`
-      );
+        setEstado(`Error: ${error.message}`);
+      }
+    } finally {
+      if (operacion === operacionRef.current) {
+        setGenerando(false);
+      }
     }
   }
 
@@ -249,95 +276,276 @@ export default function CamaraRemota({
 
     try {
       await navigator.clipboard.writeText(url);
-
-      setEstado(
-        "Enlace copiado. Ábrelo en el celular."
-      );
+      setEstado("Enlace copiado correctamente.");
     } catch {
       setEstado(
-        "No se pudo copiar el enlace."
+        "No se pudo copiar el enlace. Selecciónalo manualmente."
       );
     }
   }
 
+  const boton = {
+    padding: "12px 16px",
+    borderRadius: 12,
+    border: "none",
+    fontWeight: 800,
+    cursor: "pointer",
+    fontSize: 14,
+  };
+
   return (
-    <div
+    <section
       style={{
-        padding: 18,
-        color: "#eaf4ff",
+        width: "100%",
+        boxSizing: "border-box",
+        color: "#172033",
+        fontFamily: "Arial, sans-serif",
       }}
     >
-      <h2>📱 Conectar cámara del celular</h2>
-
-      <p>
-        Utiliza la cámara trasera de tu celular
-        para escanear productos directamente
-        en POS Init.
-      </p>
-
-      <button
-        type="button"
-        onClick={conectar}
+      <div
+        style={{
+          padding: 20,
+          borderRadius: 18,
+          background: "#ffffff",
+          border: "1px solid #dce5ef",
+        }}
       >
-        📱 Generar conexión
-      </button>
+        <h2
+          style={{
+            margin: "0 0 10px",
+            color: "#10243b",
+            fontSize: 22,
+          }}
+        >
+          📱 Conectar cámara del celular
+        </h2>
 
-      {url && (
+        <p
+          style={{
+            color: "#475569",
+            fontSize: 14,
+            lineHeight: 1.5,
+          }}
+        >
+          Utiliza la cámara trasera de tu celular
+          para escanear productos directamente en POS Init.
+        </p>
+
+        <button
+          type="button"
+          onClick={conectar}
+          disabled={generando}
+          style={{
+            ...boton,
+            width: "100%",
+            color: "#ffffff",
+            background: "#2563eb",
+            opacity: generando ? 0.6 : 1,
+          }}
+        >
+          {generando
+            ? "⏳ Generando conexión..."
+            : "📷 Generar conexión"}
+        </button>
+
+        {url && (
+          <div
+            style={{
+              marginTop: 18,
+              padding: 16,
+              borderRadius: 16,
+              background: "#f1f5f9",
+              border: "1px solid #cbd5e1",
+              textAlign: "center",
+            }}
+          >
+            <h3
+              style={{
+                margin: "0 0 12px",
+                color: "#0f172a",
+                fontSize: 16,
+              }}
+            >
+              📲 Escanear código QR
+            </h3>
+
+            <div
+              style={{
+                display: "inline-flex",
+                padding: 14,
+                background: "#ffffff",
+                borderRadius: 14,
+              }}
+            >
+              <QRCodeSVG
+                value={url}
+                size={190}
+                level="M"
+                includeMargin
+              />
+            </div>
+
+            <p
+              style={{
+                color: "#475569",
+                fontSize: 13,
+              }}
+            >
+              Escanea el QR con tu celular
+              para abrir la cámara de POS Init.
+            </p>
+
+            <input
+              readOnly
+              value={url}
+              onFocus={(e) => e.target.select()}
+              style={{
+                width: "100%",
+                boxSizing: "border-box",
+                padding: 11,
+                border: "1px solid #94a3b8",
+                borderRadius: 10,
+                background: "#ffffff",
+                color: "#0f172a",
+                fontSize: 12,
+              }}
+            />
+
+            <button
+              type="button"
+              onClick={copiarEnlace}
+              style={{
+                ...boton,
+                width: "100%",
+                marginTop: 10,
+                color: "#ffffff",
+                background: "#0f766e",
+              }}
+            >
+              📋 Copiar enlace
+            </button>
+
+            <p
+              style={{
+                color: "#64748b",
+                fontSize: 11,
+                overflowWrap: "anywhere",
+              }}
+            >
+              Sesión: {sesionId}
+            </p>
+          </div>
+        )}
+
         <div
           style={{
             marginTop: 18,
+            padding: 14,
+            borderRadius: 12,
+            background: conectado
+              ? "#dcfce7"
+              : "#eff6ff",
+            border: conectado
+              ? "1px solid #86efac"
+              : "1px solid #bfdbfe",
+            color: conectado
+              ? "#166534"
+              : "#1e40af",
+            fontWeight: 700,
+            fontSize: 13,
+          }}
+          role="status"
+        >
+          {conectado ? "🟢 " : "🔵 "}
+          {estado}
+        </div>
+
+        <div
+          style={{
+            display: "flex",
+            gap: 10,
+            marginTop: 16,
+            flexWrap: "wrap",
           }}
         >
-          <p>
-            Abre este enlace desde POS Init
-            en tu celular:
-          </p>
-
-          <input
-            readOnly
-            value={url}
-            style={{
-              width: "100%",
-              padding: 10,
-              borderRadius: 8,
-            }}
-          />
-
           <button
             type="button"
-            onClick={copiarEnlace}
+            onClick={desconectar}
             style={{
-              marginTop: 10,
+              ...boton,
+              flex: 1,
+              background: "#fee2e2",
+              color: "#991b1b",
             }}
           >
-            📋 Copiar enlace
+            ⏹ Desconectar
           </button>
 
-          <p>
-            Sesión: {sesionId}
-          </p>
+          {onCerrar && (
+            <button
+              type="button"
+              onClick={onCerrar}
+              style={{
+                ...boton,
+                flex: 1,
+                background: "#e2e8f0",
+                color: "#334155",
+              }}
+            >
+              Cerrar
+            </button>
+          )}
         </div>
-      )}
+      </div>
 
-      <p role="status">
-        {estado}
-      </p>
+      {/* FUTURA CONEXIÓN CON LA APP */}
 
-      <button
-        type="button"
-        onClick={desconectar}
+      <div
+        style={{
+          marginTop: 16,
+          padding: 18,
+          borderRadius: 18,
+          background: "#f8fafc",
+          border: "1px solid #cbd5e1",
+        }}
       >
-        ⏹ Desconectar celular
-      </button>
+        <h3
+          style={{
+            color: "#0f172a",
+            marginTop: 0,
+          }}
+        >
+          📱 Conectar con la app POS Init
+        </h3>
 
-      {onCerrar && (
+        <p
+          style={{
+            color: "#475569",
+            fontSize: 13,
+            lineHeight: 1.5,
+          }}
+        >
+          Próximamente podrás vincular directamente
+          la aplicación móvil de POS Init con
+          esta computadora, sin utilizar un lector
+          QR externo.
+        </p>
+
         <button
           type="button"
-          onClick={onCerrar}
+          disabled
+          style={{
+            ...boton,
+            width: "100%",
+            background: "#cbd5e1",
+            color: "#475569",
+            cursor: "not-allowed",
+          }}
         >
-          Cerrar configuración
+          🔗 Vincular aplicación móvil
+          (próximamente)
         </button>
-      )}
-    </div>
+      </div>
+    </section>
   );
 }

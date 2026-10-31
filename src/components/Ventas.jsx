@@ -33,7 +33,9 @@ import CamaraIntegrada from "./CamaraIntegrada";
 
 
 // FUNCIONES NATIVAS: clima, reloj y cámara. Sin dependencias adicionales.
-function ClimaHoraPos({ actualizarToken = 0 }) {
+function ClimaHoraPos({ actualizarToken = 0, cancelarToken = 0 }) {
+  const solicitudRef = useRef(0);
+  useEffect(() => { solicitudRef.current += 1; setEstado(""); }, [cancelarToken]);
   const [clima, setClima] = useState(null);
   const [hora, setHora] = useState("");
   const [estado, setEstado] = useState("");
@@ -58,7 +60,9 @@ function ClimaHoraPos({ actualizarToken = 0 }) {
   const activarUbicacion = () => {
     if (!navigator.geolocation) { setEstado("Ubicación no disponible"); return; }
     setEstado("Consultando clima...");
+    const solicitud = ++solicitudRef.current;
     navigator.geolocation.getCurrentPosition(async ({ coords }) => {
+      if (solicitud !== solicitudRef.current) return;
       try {
         const params = new URLSearchParams({
           latitude: String(coords.latitude), longitude: String(coords.longitude),
@@ -69,6 +73,7 @@ function ClimaHoraPos({ actualizarToken = 0 }) {
         const datos = await respuesta.json();
         const codigo = Number(datos.current?.weather_code ?? -1);
         const icono = codigo <= 1 && codigo >= 0 ? "☀️" : codigo <= 3 ? "🌤️" : codigo <= 48 ? "🌫️" : codigo <= 67 ? "🌧️" : codigo <= 77 ? "❄️" : "⛈️";
+        if (solicitud !== solicitudRef.current) return;
         setClima({
           temperatura: Math.round(Number(datos.current.temperature_2m)),
           zona: datos.timezone,
@@ -77,8 +82,8 @@ function ClimaHoraPos({ actualizarToken = 0 }) {
           icono,
         });
         setEstado("");
-      } catch (err) { setEstado(err.message || "Error de clima"); }
-    }, () => setEstado("Ubicación no autorizada"), {
+      } catch (err) { if (solicitud === solicitudRef.current) setEstado(err.message || "Error de clima"); }
+    }, () => { if (solicitud === solicitudRef.current) setEstado("Ubicación no autorizada"); }, {
       enableHighAccuracy: false, timeout: 12000, maximumAge: 300000,
     });
   };
@@ -288,6 +293,9 @@ function Ventas({
   const [vinculandoCelular, setVinculandoCelular] = useState(false);
   const [configuracionFunciones, setConfiguracionFunciones] = useState(null);
   const [actualizacionClima, setActualizacionClima] = useState(0);
+  const [cancelacionClima, setCancelacionClima] = useState(0);
+  const [avisosHabilitados, setAvisosHabilitados] = useState(() => localStorage.getItem("pos-init-avisos-habilitados") !== "false");
+  const cerrarAvisoEnCincoSegundos = (aviso) => window.setTimeout(() => aviso.close(), 5000);
   const [camarasConfiguracion, setCamarasConfiguracion] = useState([]);
   const [camaraElegida, setCamaraElegida] = useState(() => localStorage.getItem("pos-init-camara-preferida") || "");
   const [mensajeConfiguracion, setMensajeConfiguracion] = useState("");
@@ -319,15 +327,17 @@ function Ventas({
     return () => { cancelado = true; };
   }, [configuracionFunciones]);
   const probarNotificacion = () => {
+    if (!avisosHabilitados) { setMensajeConfiguracion("Activa los avisos de POS Init primero."); return; }
     if (!("Notification" in window) || Notification.permission !== "granted") {
       setMensajeConfiguracion("Primero autoriza las notificaciones desde Chrome.");
       return;
     }
     try {
       const aviso = new Notification("POS Init · Prueba de notificaciones", {
-        body: "Las notificaciones del sistema están funcionando.",
+        body: "Las notificaciones del sistema están funcionando. Se cerrará en 5 segundos.",
         tag: "pos-init-prueba",
       });
+      cerrarAvisoEnCincoSegundos(aviso);
       aviso.onclick = () => { window.focus(); aviso.close(); };
       setMensajeConfiguracion("Notificación enviada a Windows. Comprueba el centro de notificaciones.");
     } catch (err) { setMensajeConfiguracion(`No se pudo mostrar la notificación: ${err.message}`); }
@@ -365,7 +375,7 @@ function Ventas({
     if (ultimoSaldoNotificadoRef.current !== null &&
         saldoCentavos <= ultimoSaldoNotificadoRef.current) return;
 
-    if (permisoNotificacion !== "granted" ||
+    if (!avisosHabilitados || permisoNotificacion !== "granted" ||
         typeof Notification === "undefined" ||
         Notification.permission !== "granted") return;
 
@@ -374,10 +384,11 @@ function Ventas({
         body: `Efectivo en caja: $${saldo.toLocaleString("es-MX", {
           minimumFractionDigits: 2,
           maximumFractionDigits: 2,
-        })} MXN. Realiza un retiro.`,
+        })} MXN. Realiza un retiro. Se cerrará en 5 segundos.`,
         // Sin tag: Chrome no reemplaza el aviso anterior por el nuevo.
-        requireInteraction: true,
+        requireInteraction: false,
       });
+      cerrarAvisoEnCincoSegundos(aviso);
       ultimoSaldoNotificadoRef.current = saldoCentavos;
       aviso.onclick = () => {
         window.focus();
@@ -389,7 +400,7 @@ function Ventas({
     } catch (err) {
       console.warn("No se pudo mostrar la notificación de retiro:", err);
     }
-  }, [efectivoEnCaja, permisoNotificacion, cajaListaParaAlertar, cajaClave]);
+  }, [efectivoEnCaja, permisoNotificacion, cajaListaParaAlertar, cajaClave, avisosHabilitados]);
 
   const activarNotificaciones = async () => {
     if (!("Notification" in window)) { setError("Este navegador no admite notificaciones del sistema."); return; }
@@ -1099,6 +1110,7 @@ Imprimir ticket
         `);
 
         ventana.document.close();
+        ventana.addEventListener("keydown", (e) => { if (e.key === "Escape") ventana.close(); });
 
         setMostrarMenu(
           false
@@ -1162,10 +1174,11 @@ Imprimir ticket
   useEffect(() => {
     const manejarTecla = (event) => {
       if (cajaEnEspera) return;
-      if (!["F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9", "F10"].includes(event.key)) return;
+      if (!["F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9", "F10", "Escape"].includes(event.key)) return;
+      if (event.key === "Escape" && !configuracionFunciones && !mostrarMenu) return;
       event.preventDefault(); // F1 no debe abrir la ayuda del navegador.
       if (configuracionFunciones) {
-        if (event.key === "F1") setConfiguracionFunciones(null);
+        if (event.key === "Escape" || event.key === "F1") setConfiguracionFunciones(null);
         return;
       }
       if (mostrarConfirmacionSalida || ticketVentaActual || mostrarConfirmarRetiro ||
@@ -1191,10 +1204,11 @@ Imprimir ticket
         setMostrarMenu((abierto) => !abierto);
         return;
       }
-      if (["F6", "F7", "F8"].includes(event.key)) {
+      if (mostrarMenu && ["F6", "F7", "F8"].includes(event.key)) {
         abrirConfiguracion({ F6: "camara", F7: "notificaciones", F8: "ubicacion" }[event.key]);
         return;
       }
+      if (event.key === "Escape" && mostrarMenu) { setMostrarMenu(false); return; }
       if (!mostrarMenu) return;
       if (event.key === "F2") {
         if (efectivoEnCaja <= 0) {
@@ -2698,6 +2712,7 @@ window.onload = function () {
       `);
 
       ventana.document.close();
+      ventana.addEventListener("keydown", (e) => { if (e.key === "Escape") ventana.close(); });
 
       borrarTicketYSalir();
     };
@@ -2982,11 +2997,12 @@ window.onload = function () {
             </div>
           )}
           </div>
-          <ClimaHoraPos actualizarToken={actualizacionClima} />
+          <ClimaHoraPos actualizarToken={actualizacionClima} cancelarToken={cancelacionClima} />
         </div>
 
         <div className="ventas-header-acciones" style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          {permisoNotificacion !== "granted" && (
+          <button type="button" className="ventas-cerrar" onClick={async () => { try { if (!document.fullscreenElement) await document.documentElement.requestFullscreen(); else await document.exitFullscreen(); } catch (err) { setError("Pantalla completa requiere autorización del navegador."); } }} title="Pantalla completa (equivalente a F11)">⛶ Pantalla completa</button>
+          {permisoNotificacion !== "granted" && avisosHabilitados && (
             <button type="button" className="ventas-cerrar" onClick={activarNotificaciones} title="Activar notificaciones del sistema">🔔 Activar avisos</button>
           )}
 
@@ -4741,7 +4757,7 @@ window.onload = function () {
       )}
 
               {vinculandoCelular && (
-          <div style={configuracionFunciones === "camara" ? {position:"fixed",zIndex:10030,top:"50%",left:"50%",transform:"translate(-50%, -5%)",width:"min(410px,90vw)",maxHeight:"42vh",overflowY:"auto",background:"white",borderRadius:12,boxShadow:"0 5px 25px #0005"} : {display:"none"}}>
+          <div style={configuracionFunciones === "camara" ? {position:"fixed",zIndex:10030,top:"50%",left:"50%",transform:"translate(-50%, -5%)",width:"min(520px,94vw)",maxHeight:"78vh",overflowY:"auto",background:"#fff",color:"#14243a",border:"1px solid #cbd5e1",borderRadius:16,boxShadow:"0 15px 50px #0008"} : {display:"none"}}>
             <CamaraRemota ownerUid={ownerUid} usuarioId={usuario?.id} onStream={(stream)=>{setStreamRemoto(stream);if(stream){setModoCamara("celular");setCamaraActiva(true);}else{setModoCamara("usb");}}} onCerrar={()=>{setVinculandoCelular(false);setStreamRemoto(null);setModoCamara("usb");}} />
           </div>
         )}
@@ -4759,21 +4775,23 @@ window.onload = function () {
                 <button type="button" disabled={!camaraElegida} onClick={() => { localStorage.setItem("pos-init-camara-preferida", camaraElegida); setMensajeConfiguracion("Cámara guardada. El escáner la utilizará al abrirse."); }} style={{ marginTop: 12, padding: 10 }}>Guardar cámara</button>
                 <p><button type="button" onClick={()=>{localStorage.setItem("pos-init-camara-preferida",camaraElegida);setModoCamara("usb");setVinculandoCelular(false);setStreamRemoto(null);setCamaraActiva(true);setConfiguracionFunciones(null);}}>Usar cámara USB</button></p>
                 <button type="button" onClick={()=>{setVinculandoCelular(true);setCamaraActiva(true);}}>📱 Conectar celular por internet</button>
+                <p style={{fontSize:12,background:"#eff6ff",padding:10,borderRadius:8}}>🔗 Vincular app POS Init: próximamente. La conexión actual funciona por enlace o QR.</p>
                 <p style={{fontSize:12}}>La vinculación continúa aunque cierres F6. El celular debe tener iniciada la sesión del mismo negocio.</p>
               </>
             )}
             {configuracionFunciones === "notificaciones" && (
               <>
                 <p>Permiso de Chrome: <strong>{permisoNotificacion}</strong></p>
-                <button type="button" onClick={async () => { await activarNotificaciones(); setMensajeConfiguracion("Revisa el permiso de Chrome. Si lo autorizaste, prueba la notificación."); }} style={{ padding: 10, marginRight: 8 }}>Activar notificaciones</button>
-                <button type="button" onClick={probarNotificacion} disabled={permisoNotificacion !== "granted"} style={{ padding: 10 }}>Enviar prueba</button>
-                <p style={{ fontSize: 13 }}>El aviso automático de retiro utiliza el efectivo real de caja a partir de $3,000 MXN.</p>
+                <button type="button" onClick={async () => { if (avisosHabilitados) { setAvisosHabilitados(false); localStorage.setItem("pos-init-avisos-habilitados", "false"); setMensajeConfiguracion("Avisos de POS Init desactivados."); } else { setAvisosHabilitados(true); localStorage.setItem("pos-init-avisos-habilitados", "true"); if (Notification.permission !== "granted") await activarNotificaciones(); setMensajeConfiguracion("Avisos de POS Init activados."); } }} style={{ padding: 10, marginRight: 8 }}>{avisosHabilitados ? "🔕 Desactivar notificaciones" : "🔔 Activar notificaciones"}</button>
+                <button type="button" onClick={probarNotificacion} disabled={permisoNotificacion !== "granted" || !avisosHabilitados} style={{ padding: 10 }}>Enviar prueba</button>
+                <p style={{ fontSize: 13 }}>El aviso automático de retiro utiliza el efectivo real de caja a partir de $3,000 MXN. Se solicita su cierre después de 5 segundos.</p>
               </>
             )}
             {configuracionFunciones === "ubicacion" && (
               <>
                 <p>Actualiza el clima y la hora de la barra superior. Chrome puede solicitar permiso de ubicación.</p>
                 <button type="button" onClick={() => { setActualizacionClima((n) => n + 1); setMensajeConfiguracion("Actualizando ubicación y clima en la barra superior..."); }} style={{ padding: 10 }}>📍 Validar y actualizar ubicación</button>
+                <button type="button" onClick={() => { setCancelacionClima(n => n + 1); setMensajeConfiguracion("Solicitud cancelada; se ignorará su resultado si llega después."); }} style={{ padding: 10, marginLeft: 8 }}>Cancelar ubicación</button>
               </>
             )}
             {mensajeConfiguracion && <p role="status" style={{ fontSize: 13 }}>{mensajeConfiguracion}</p>}
