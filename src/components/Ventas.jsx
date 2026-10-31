@@ -140,6 +140,18 @@ function Ventas({
   usuario,
   onCerrarCaja,
 }) {
+  // Nombre del negocio: se lee de la cuenta propietaria, no del cajero.
+  const [nombreEmpresa, setNombreEmpresa] = useState("");
+  useEffect(() => {
+    if (!ownerUid) { setNombreEmpresa(""); return undefined; }
+    return onSnapshot(doc(db, "usuarios", ownerUid), (snap) => {
+      const datos = snap.data() || {};
+      const nombre = datos.nombreNegocio || datos.nombreEmpresa || datos.nombreComercial ||
+        datos.negocio?.nombre || datos.empresa?.nombre || datos.nombreTienda || "";
+      setNombreEmpresa(String(nombre).trim());
+    }, () => setNombreEmpresa(""));
+  }, [ownerUid]);
+
   const [cajaEnEspera, setCajaEnEspera] = useState(false);
   const [pinDesbloqueo, setPinDesbloqueo] = useState("");
   const [errorDesbloqueo, setErrorDesbloqueo] = useState("");
@@ -2979,14 +2991,8 @@ window.onload = function () {
             POS Init
           </h1>
 
-          <p>
-            Caja ·{" "}
-            {usuario?.nombre ||
-              "Usuario"}{" "}
-            ·{" "}
-            {usuario
-              ?.numeroUsuario ||
-              ""}
+          <p className="pos-ventas-empresa" title={nombreEmpresa || "Nombre de empresa no configurado"}>
+            {nombreEmpresa || "Punto de venta"}
           </p>
 
           {false && efectivoEnCaja >= LIMITE_RETIRO && (
