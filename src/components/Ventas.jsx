@@ -3083,8 +3083,9 @@ window.onload = function () {
       <div
         className="ventas-contenido"
         style={{
-          height:
-            "calc(100dvh - 166px)",
+          height: "auto",
+          flex: "1 1 auto",
+          minHeight: 0,
 
           overflow:
             "hidden",

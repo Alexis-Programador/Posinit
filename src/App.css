@@ -4840,3 +4840,83 @@ body:has(.pagina-pin-seguro),
 .ventas-pagina .catalogo .productos-grid { grid-template-columns:repeat(4,minmax(0,1fr)) !important; grid-auto-rows:240px !important; }
 @media(max-width:1250px){.ventas-pagina .catalogo .productos-grid {grid-template-columns:repeat(3,minmax(0,1fr)) !important;}}
 @media(max-width:800px){.ventas-pagina .catalogo .productos-grid {grid-template-columns:repeat(2,minmax(0,1fr)) !important;grid-auto-rows:220px !important;}}
+
+
+/* ================================================================
+   POS INIT | CORRECCIÓN 31-10-2026
+   Barra inferior visible + cámara compacta en encabezado.
+   No modifica lógica de escaneo, ventas, pagos ni accesos.
+   ================================================================ */
+@media (min-width: 801px) {
+  .ventas-pagina {
+    display: flex !important;
+    flex-direction: column !important;
+    height: 100dvh !important;
+    min-height: 0 !important;
+    overflow: hidden !important;
+  }
+  .ventas-pagina > .ventas-header {
+    flex: 0 0 auto !important;
+    min-height: 76px !important;
+    padding: 9px 20px !important;
+    gap: 14px !important;
+  }
+  .ventas-pagina > .ventas-contenido {
+    flex: 1 1 auto !important;
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: hidden !important;
+    align-items: stretch !important;
+  }
+  .ventas-pagina > .pos-ventas-barra-inferior {
+    flex: 0 0 auto !important;
+    min-height: 70px !important;
+    display: flex !important;
+    visibility: visible !important;
+    position: relative !important;
+    z-index: 5;
+  }
+  .ventas-pagina .carrito {
+    height: 100% !important;
+    max-height: 100% !important;
+    top: 0 !important;
+  }
+}
+/* Escáner USB: solo video compacto; se ocultan título y estado redundantes. */
+.ventas-pagina .pos-ventas-camara .pos-camara-integrada {
+  width: 176px !important;
+  max-width: 176px !important;
+  flex: 0 0 176px !important;
+  border-radius: 10px !important;
+  overflow: hidden !important;
+}
+.ventas-pagina .pos-ventas-camara .pos-camara-encabezado,
+.ventas-pagina .pos-ventas-camara .pos-camara-mensaje {
+  display: none !important;
+}
+.ventas-pagina .pos-ventas-camara .pos-camara-visor {
+  height: 60px !important;
+  min-height: 60px !important;
+}
+.ventas-pagina .pos-ventas-camara .pos-camara-boton {
+  min-height: 38px !important;
+  padding: 8px 10px !important;
+  font-size: 12px !important;
+  white-space: nowrap;
+}
+.ventas-pagina .pos-ventas-camara .pos-camara-cabecera { gap: 8px !important; }
+.ventas-pagina .pos-ventas-buscador .buscar-producto { height: 48px !important; }
+.ventas-pagina .pos-ventas-barra-inferior { box-sizing: border-box; }
+.ventas-pagina .pos-ventas-tiempo .pos-clima-hora { justify-content: flex-end; }
+.ventas-pagina .pos-ventas-tiempo .pos-clima-hora small { color: #a34020 !important; }
+@media (max-width: 1100px) and (min-width: 801px) {
+  .ventas-pagina .ventas-header { flex-wrap: wrap; }
+  .ventas-pagina .pos-ventas-herramientas { order: 3; flex-basis: 100%; max-width: none; }
+  .ventas-pagina .pos-ventas-camara .pos-camara-integrada { width: 150px !important; max-width: 150px !important; flex-basis: 150px !important; }
+}
+@media (max-width: 800px) {
+  .ventas-pagina { min-height: 100dvh !important; height: auto !important; overflow: visible !important; }
+  .ventas-pagina > .ventas-contenido { height: auto !important; overflow: visible !important; }
+  .ventas-pagina > .pos-ventas-barra-inferior { display: flex !important; visibility: visible !important; }
+  .ventas-pagina .pos-ventas-camara .pos-camara-integrada { width: 150px !important; max-width: 150px !important; flex-basis: 150px !important; }
+}
