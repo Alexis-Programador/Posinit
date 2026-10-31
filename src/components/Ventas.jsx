@@ -4783,7 +4783,16 @@ window.onload = function () {
 
               {(vinculandoCelular || mostrarPanelConexion) && (
           <div style={configuracionFunciones === "camara" && mostrarPanelConexion ? {position:"fixed",zIndex:10030,top:"max(12px, 5vh)",left:"50%",transform:"translateX(-50%)",width:"min(520px,94vw)",maxHeight:"90dvh",overflowY:"auto",background:"#fff",color:"#14243a",border:"1px solid #cbd5e1",borderRadius:16,boxShadow:"0 15px 50px #0008"} : {display:"none"}}>
-            <CamaraRemota ownerUid={ownerUid} usuarioId={usuario?.id} onStream={(stream)=>{setStreamRemoto(stream);if(stream){setModoCamara("celular");setCamaraActiva(true);}else{setModoCamara("usb");}}} onCerrar={()=>setMostrarPanelConexion(false)} />
+            <CamaraRemota ownerUid={ownerUid} usuarioId={usuario?.id} onCodigo={(codigo) => {
+              const limpio = String(codigo ?? "").replace(/\s+/g, "").trim();
+              const encontrado = productos.find((p) =>
+                [p.codigoBarras, p.codigo, p.barcode, p.ean,
+                 ...(Array.isArray(p.codigosBarras) ? p.codigosBarras : [])]
+                  .some((v) => String(v ?? "").replace(/\s+/g, "") === limpio)
+              );
+              if (encontrado) agregarProducto(encontrado);
+              else setError(`Código ${limpio} no encontrado en inventario.`);
+            }} onStream={(stream)=>{setStreamRemoto(stream);if(stream){setModoCamara("celular");setCamaraActiva(true);}else{setModoCamara("usb");}}} onCerrar={()=>setMostrarPanelConexion(false)} />
           </div>
         )}
 {configuracionFunciones && (

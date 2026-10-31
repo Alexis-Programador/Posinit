@@ -10,18 +10,30 @@ export default function CamaraIntegrada({
   esperandoCelular = false,
 }) {
   const videoRef = useRef(null);
-  const datosRef = useRef({ productos, onProducto });
-  const ultimoRef = useRef({ codigo: "", tiempo: 0 });
+
+  const datosRef = useRef({
+    productos,
+    onProducto,
+  });
+
+  const ultimoRef = useRef({
+    codigo: "",
+    tiempo: 0,
+  });
 
   const [estado, setEstado] = useState("Preparando cámara...");
   const [fuente, setFuente] = useState("conectando");
 
   useEffect(() => {
-    datosRef.current = { productos, onProducto };
+    datosRef.current = {
+      productos,
+      onProducto,
+    };
   }, [productos, onProducto]);
 
   useEffect(() => {
     const video = videoRef.current;
+
     if (!video) return;
 
     let cancelado = false;
@@ -32,14 +44,17 @@ export default function CamaraIntegrada({
 
     const pistaRemota = streamRemoto
       ?.getVideoTracks?.()
-      .find((t) => t.readyState === "live");
+      .find((track) => track.readyState === "live");
 
     const remoto = Boolean(pistaRemota);
 
     const detectar = (resultado) => {
       if (!resultado || cancelado) return;
 
-      const codigo = String(resultado.getText() || "").trim();
+      const codigo = String(resultado.getText() || "")
+        .replace(/\s+/g, "")
+        .trim();
+
       if (!codigo) return;
 
       const ahora = Date.now();
@@ -61,10 +76,23 @@ export default function CamaraIntegrada({
         onProducto: agregar,
       } = datosRef.current;
 
-      const producto = lista.find(
-        (p) =>
-          String(p.codigoBarras ?? p.codigo ?? "").trim() === codigo
-      );
+      const producto = lista.find((p) => {
+        const codigos = [
+          p.codigoBarras,
+          p.codigo,
+          p.barcode,
+          p.ean,
+          ...(Array.isArray(p.codigosBarras)
+            ? p.codigosBarras
+            : []),
+        ];
+
+        return codigos.some(
+          (valor) =>
+            String(valor ?? "")
+              .replace(/\s+/g, "") === codigo
+        );
+      });
 
       if (producto) {
         agregar?.(producto);
@@ -97,10 +125,8 @@ export default function CamaraIntegrada({
 
           if (cancelado) return;
 
-          controles = await lector.decodeFromVideoElement(
-            video,
-            detectar
-          );
+          // El celular ya decodifica los códigos.
+          // Aquí únicamente mostramos su video.
         } else {
           controles = await lector.decodeFromVideoDevice(
             camaraId || undefined,
@@ -114,7 +140,8 @@ export default function CamaraIntegrada({
           return;
         }
 
-        const pista = video.srcObject?.getVideoTracks?.()[0];
+        const pista = video.srcObject
+          ?.getVideoTracks?.()[0];
 
         let sinImagen = 0;
 
@@ -147,14 +174,18 @@ export default function CamaraIntegrada({
 
             setFuente(remoto ? "celular" : "usb");
 
-            setEstado((prev) =>
-              prev.startsWith("✓") ||
-              prev.startsWith("Código no encontrado")
-                ? prev
-                : remoto
+            setEstado((anterior) => {
+              if (
+                anterior.startsWith("✓") ||
+                anterior.startsWith("Código no encontrado")
+              ) {
+                return anterior;
+              }
+
+              return remoto
                 ? "📱 Cámara del celular conectada"
-                : "📷 Cámara USB conectada"
-            );
+                : "📷 Cámara USB conectada";
+            });
           }
         }, 1000);
       } catch (error) {
