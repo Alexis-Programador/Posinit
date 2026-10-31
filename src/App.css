@@ -5156,3 +5156,100 @@ body:has(.pagina-pin-seguro),
   .ventas-pagina .pos-ventas-barra-inferior { padding: 8px 12px !important; gap: 9px !important; }
   .ventas-pagina .pos-ventas-retiro { padding: 5px 8px !important; }
 }
+
+
+/* POS INIT - PIE DE CAJA ULTRACOMPACTO (31 OCT 2026) */
+.ventas-pagina .pos-ventas-barra-inferior {
+  min-height: 44px !important;
+  padding: 5px 12px !important;
+  gap: 10px !important;
+}
+.ventas-pagina .pos-ventas-identidad { gap: 6px !important; }
+.ventas-pagina .pos-ventas-avatar {
+  width: 29px !important; height: 29px !important; font-size: 13px !important;
+  flex: 0 0 29px !important;
+}
+.ventas-pagina .pos-ventas-identidad > span:last-child { gap: 0 !important; }
+.ventas-pagina .pos-ventas-identidad strong { font-size: 12px !important; line-height: 1.15 !important; }
+.ventas-pagina .pos-ventas-identidad small { font-size: 10px !important; line-height: 1.15 !important; }
+.ventas-pagina .pos-ventas-retiro {
+  display: inline-flex !important; flex-direction: row !important; align-items: center !important;
+  flex-wrap: nowrap !important; white-space: nowrap !important;
+  gap: 5px !important; padding: 5px 9px !important;
+  border-radius: 8px !important; min-width: 0 !important;
+}
+.ventas-pagina .pos-ventas-retiro > span { display: inline !important; font-size: 12px !important; }
+.ventas-pagina .pos-ventas-retiro strong,
+.ventas-pagina .pos-ventas-retiro small {
+  display: inline !important; white-space: nowrap !important;
+  font-size: 11px !important; line-height: 1.1 !important;
+}
+.ventas-pagina .pos-ventas-retiro small { margin-left: 3px !important; }
+@media (max-width: 600px) {
+  .ventas-pagina .pos-ventas-barra-inferior { gap: 6px !important; padding: 5px 8px !important; }
+  .ventas-pagina .pos-ventas-retiro { padding: 4px 6px !important; }
+  .ventas-pagina .pos-ventas-retiro strong,
+  .ventas-pagina .pos-ventas-retiro small { font-size: 10px !important; }
+}
+
+
+/* ===========================================================
+   POS INIT - CATALOGO MAS GRANDE Y LEGIBLE
+   Mantiene tarjetas proporcionales, sin estirar el ancho.
+   =========================================================== */
+@media (min-width: 901px) {
+  .ventas-pagina .catalogo .productos-grid {
+    grid-template-columns: repeat(auto-fill, 225px) !important;
+    grid-auto-rows: 310px !important;
+    gap: 14px !important;
+    justify-content: start !important;
+  }
+  .ventas-pagina .catalogo .producto-card,
+  .ventas-pagina .producto-card {
+    width: 225px !important;
+    max-width: 225px !important;
+    height: 310px !important;
+    min-height: 310px !important;
+  }
+  .ventas-pagina .catalogo .producto-imagen,
+  .ventas-pagina .producto-imagen {
+    height: 220px !important;
+    min-height: 220px !important;
+    flex: 0 0 220px !important;
+    padding: 8px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    overflow: hidden !important;
+  }
+  .ventas-pagina .catalogo .producto-imagen img,
+  .ventas-pagina .producto-imagen img {
+    width: 100% !important;
+    height: 100% !important;
+    object-fit: contain !important;
+    object-position: center !important;
+  }
+  .ventas-pagina .catalogo .producto-info,
+  .ventas-pagina .producto-info {
+    padding: 9px 12px !important;
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
+  }
+}
+@media (min-width: 601px) and (max-width: 900px) {
+  .ventas-pagina .catalogo .productos-grid {
+    grid-template-columns: repeat(auto-fill, minmax(175px, 1fr)) !important;
+    grid-auto-rows: 260px !important;
+  }
+  .ventas-pagina .catalogo .producto-card,
+  .ventas-pagina .producto-card {
+    max-width: none !important;
+    height: 260px !important;
+  }
+  .ventas-pagina .catalogo .producto-imagen,
+  .ventas-pagina .producto-imagen {
+    height: 180px !important;
+    min-height: 180px !important;
+    flex: 0 0 180px !important;
+  }
+}
