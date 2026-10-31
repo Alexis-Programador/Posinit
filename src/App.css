@@ -4945,3 +4945,48 @@ body:has(.pagina-pin-seguro),
   .ventas-pagina .producto-imagen { height:105px !important; flex-basis:105px !important; }
   .ventas-pagina .carrito-productos { max-height:42dvh; overflow-y:auto !important; }
 }
+
+
+/* ===========================================================
+   POS INIT | Tarjetas más legibles y carrito más estrecho
+   Mantiene la barra inferior y el botón Cobrar al final del panel.
+   =========================================================== */
+@media (min-width: 801px) {
+  .ventas-pagina .ventas-contenido {
+    grid-template-columns: minmax(0, 1fr) clamp(280px, 25vw, 330px) !important;
+  }
+  .ventas-pagina .carrito {
+    align-self: start !important;
+    height: min(680px, 100%) !important;
+    max-height: 100% !important;
+    min-height: 0 !important;
+    padding: 14px !important;
+    border-radius: 0 0 0 14px;
+  }
+  .ventas-pagina .carrito-encabezado { padding: 2px 0 10px !important; }
+  .ventas-pagina .carrito-encabezado h2 { font-size: 19px !important; }
+  .ventas-pagina .carrito-item { padding-top: 9px !important; padding-bottom: 9px !important; }
+  .ventas-pagina .carrito-resumen { padding: 10px 12px !important; }
+  .ventas-pagina .carrito-total strong { font-size: 22px !important; }
+  .ventas-pagina .boton-cobrar { min-height: 48px !important; font-size: 16px !important; }
+}
+.ventas-pagina .catalogo .productos-grid {
+  grid-auto-rows: 170px !important;
+  gap: 10px !important;
+}
+.ventas-pagina .producto-card { height: 170px !important; }
+.ventas-pagina .producto-imagen {
+  height: auto !important;
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  padding: 3px 5px !important;
+}
+.ventas-pagina .producto-imagen img { object-fit: contain !important; padding: 0 !important; }
+.ventas-pagina .producto-info { padding: 6px 8px !important; }
+.ventas-pagina .producto-info strong { font-size: 12px !important; }
+.ventas-pagina .producto-precio { font-size: 13px !important; }
+@media (max-width: 800px) {
+  .ventas-pagina .catalogo .productos-grid { grid-auto-rows: 165px !important; }
+  .ventas-pagina .producto-card { height: 165px !important; }
+  .ventas-pagina .carrito { padding: 12px !important; }
+}

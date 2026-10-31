@@ -2854,17 +2854,14 @@ window.onload = function () {
     <main className="ventas-pagina">
 
       <style>{`
-        /* Catálogo adaptable: cinco columnas cuando hay espacio */
-        .ventas-pagina .catalogo {
-          min-width: 0;
-          container-type: inline-size;
-        }
+        /* POS Init: tarjetas compactas, imagen completa y datos legibles. */
+        .ventas-pagina .catalogo { min-width: 0; container-type: inline-size; }
         .ventas-pagina .productos-grid {
           display: grid !important;
           grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
-          grid-auto-rows: 205px !important;
-          gap: 12px !important;
-          padding: 8px 12px 20px !important;
+          grid-auto-rows: 170px !important;
+          gap: 10px !important;
+          padding: 6px 8px 14px !important;
           overflow-y: auto !important;
           align-content: start !important;
           box-sizing: border-box !important;
@@ -2873,12 +2870,12 @@ window.onload = function () {
           display: flex !important;
           flex-direction: column !important;
           width: 100% !important;
-          height: 205px !important;
+          height: 170px !important;
           min-width: 0 !important;
           min-height: 0 !important;
           padding: 0 !important;
           overflow: hidden !important;
-          border-radius: 14px !important;
+          border-radius: 12px !important;
           box-sizing: border-box !important;
           text-align: left !important;
         }
@@ -2889,7 +2886,7 @@ window.onload = function () {
           flex: 1 1 auto !important;
           width: 100% !important;
           min-height: 0 !important;
-          padding: 8px !important;
+          padding: 3px 5px !important;
           overflow: hidden !important;
           box-sizing: border-box !important;
         }
@@ -2908,16 +2905,16 @@ window.onload = function () {
           justify-content: center !important;
           width: 100% !important;
           height: 100% !important;
-          font-size: 34px !important;
+          font-size: 30px !important;
         }
         .ventas-pagina .producto-info {
           display: flex !important;
           flex-direction: column !important;
           flex: 0 0 auto !important;
-          gap: 3px !important;
+          gap: 2px !important;
           width: 100% !important;
           min-width: 0 !important;
-          padding: 9px !important;
+          padding: 6px 8px !important;
           box-sizing: border-box !important;
         }
         .ventas-pagina .producto-info strong,
@@ -2927,27 +2924,29 @@ window.onload = function () {
           text-overflow: ellipsis !important;
           white-space: nowrap !important;
         }
-        .ventas-pagina .producto-info strong { font-size: 13px !important; }
-        .ventas-pagina .producto-codigo { font-size: 10px !important; }
+        .ventas-pagina .producto-info strong { font-size: 12px !important; }
+        .ventas-pagina .producto-codigo { font-size: 9px !important; margin-top: 1px !important; }
         .ventas-pagina .producto-precio-stock {
           display: flex !important;
           justify-content: space-between !important;
-          align-items: flex-end !important;
+          align-items: center !important;
           gap: 4px !important;
           width: 100% !important;
           min-width: 0 !important;
+          margin-top: 3px !important;
         }
         .ventas-pagina .producto-precio {
-          font-size: 14px !important;
+          font-size: 13px !important;
           font-weight: 800 !important;
           white-space: nowrap !important;
         }
         .ventas-pagina .stock {
-          max-width: 50% !important;
+          max-width: 56% !important;
           overflow: hidden !important;
           text-overflow: ellipsis !important;
-          font-size: 10px !important;
+          font-size: 9px !important;
           white-space: nowrap !important;
+          padding: 3px 5px !important;
         }
         @container (max-width: 650px) {
           .productos-grid { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; }
