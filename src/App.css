@@ -5431,3 +5431,25 @@ body:has(.pagina-pin-seguro),
   object-fit: contain !important;
   object-position: center center !important;
 }
+
+/* ============================================================
+   POS INIT · Ajuste final de imagen de producto (31/10/2026)
+   La fotografía ocupa el área gris sin bandas por object-fit:contain.
+   cover puede recortar extremos en imágenes con otra proporción.
+   ============================================================ */
+.ventas-pagina .catalogo .producto-imagen {
+  padding: 0 !important;
+  position: relative;
+  overflow: hidden !important;
+}
+.ventas-pagina .catalogo .producto-imagen > img {
+  display: block !important;
+  width: 100% !important;
+  height: 100% !important;
+  min-width: 100% !important;
+  min-height: 100% !important;
+  max-width: none !important;
+  max-height: none !important;
+  object-fit: cover !important;
+  object-position: center !important;
+}
