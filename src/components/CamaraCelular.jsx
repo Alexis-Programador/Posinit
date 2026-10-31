@@ -11,68 +11,303 @@ const SERVIDORES = {
   ],
 };
 
+const limpiarCodigo = (valor) =>
+  String(valor ?? "").replace(/\s+/g, "").trim();
+
 export default function CamaraCelular() {
   const videoRef = useRef(null);
   const streamRef = useRef(null);
   const conexionRef = useRef(null);
   const canalRef = useRef(null);
   const controlesRef = useRef(null);
+  const detectorRef = useRef(null);
+  const temporizadorRef = useRef(null);
 
-  const ultimoRef = useRef({
-    codigo: "",
-    fecha: 0,
-  });
+  const ultimoRef = useRef({ codigo: "", fecha: 0 });
+  const iniciandoRef = useRef(false);
 
-  const [ultimoCodigo, setUltimoCodigo] = useState("");
   const [estado, setEstado] = useState("Listo para conectar");
   const [transmitiendo, setTransmitiendo] = useState(false);
   const [iniciando, setIniciando] = useState(false);
+  const [ultimoCodigo, setUltimoCodigo] = useState("");
+
+  const [zoom, setZoom] = useState(1);
+  const [zoomMax, setZoomMax] = useState(1);
+  const [linterna, setLinterna] = useState(false);
+  const [permiteLinterna, setPermiteLinterna] = useState(false);
+
+  const [mostrarManual, setMostrarManual] = useState(false);
+  const [codigoManual, setCodigoManual] = useState("");
 
   const parametros = new URLSearchParams(window.location.search);
   const sesionId = parametros.get("camaraCelular");
   const ownerUid = parametros.get("owner");
 
-  function detener() {
+  function obtenerPista() {
+    return streamRef.current?.getVideoTracks?.()[0] || null;
+  }
+
+  function detenerLectura() {
     controlesRef.current?.stop();
     controlesRef.current = null;
 
+    detectorRef.current = null;
+
+    if (temporizadorRef.current) {
+      clearTimeout(temporizadorRef.current);
+      temporizadorRef.current = null;
+    }
+  }
+
+  function limpiarConexion() {
+    detenerLectura();
+
+    canalRef.current?.close();
     canalRef.current = null;
 
-    streamRef.current
-      ?.getTracks()
-      .forEach((track) => track.stop());
-
     conexionRef.current?.close();
+    conexionRef.current = null;
+
+    streamRef.current?.getTracks().forEach((track) => {
+      track.stop();
+    });
 
     streamRef.current = null;
-    conexionRef.current = null;
 
     if (videoRef.current) {
       videoRef.current.srcObject = null;
     }
+  }
+
+  function detener() {
+    limpiarConexion();
 
     setTransmitiendo(false);
     setIniciando(false);
+    iniciandoRef.current = false;
+    setLinterna(false);
+    setZoom(1);
     setEstado("Transmisión detenida");
   }
 
   useEffect(() => {
     return () => {
-      controlesRef.current?.stop();
-
-      streamRef.current
-        ?.getTracks()
-        .forEach((track) => track.stop());
-
-      conexionRef.current?.close();
+      limpiarConexion();
     };
   }, []);
 
+  function enviarCodigo(valor) {
+    const codigo = limpiarCodigo(valor);
+
+    if (!codigo) return false;
+
+    const canal = canalRef.current;
+
+    if (!canal || canal.readyState !== "open") {
+      setEstado("Primero conecta el celular con POS Init.");
+      return false;
+    }
+
+    const ahora = Date.now();
+
+    if (
+      ultimoRef.current.codigo === codigo &&
+      ahora - ultimoRef.current.fecha < 1800
+    ) {
+      return false;
+    }
+
+    try {
+      canal.send(
+        JSON.stringify({
+          tipo: "codigo",
+          codigo,
+        })
+      );
+
+      ultimoRef.current = {
+        codigo,
+        fecha: ahora,
+      };
+
+      setUltimoCodigo(codigo);
+      setEstado(`✅ Código enviado: ${codigo}`);
+
+      navigator.vibrate?.(80);
+
+      return true;
+    } catch (error) {
+      setEstado(`No se pudo enviar: ${error.message}`);
+      return false;
+    }
+  }
+
+  async function cambiarZoom(valor) {
+    const pista = obtenerPista();
+
+    if (!pista) return;
+
+    const capacidades = pista.getCapabilities?.();
+
+    if (!capacidades?.zoom) {
+      setEstado("Esta cámara no permite zoom desde el navegador.");
+      return;
+    }
+
+    const minimo = capacidades.zoom.min ?? 1;
+    const maximo = capacidades.zoom.max ?? 1;
+
+    const nuevo = Math.max(
+      minimo,
+      Math.min(maximo, Number(valor))
+    );
+
+    try {
+      await pista.applyConstraints({
+        advanced: [{ zoom: nuevo }],
+      });
+
+      setZoom(nuevo);
+    } catch (error) {
+      setEstado(`No se pudo aplicar zoom: ${error.message}`);
+    }
+  }
+
+  async function cambiarLinterna() {
+    const pista = obtenerPista();
+
+    if (!pista) return;
+
+    const capacidades = pista.getCapabilities?.();
+
+    if (!capacidades?.torch) {
+      setEstado("La linterna no está disponible en esta cámara.");
+      return;
+    }
+
+    try {
+      const nuevoEstado = !linterna;
+
+      await pista.applyConstraints({
+        advanced: [{ torch: nuevoEstado }],
+      });
+
+      setLinterna(nuevoEstado);
+    } catch (error) {
+      setEstado(`Error de linterna: ${error.message}`);
+    }
+  }
+
+  async function iniciarLector(video, pc) {
+    const formatos = [
+      BarcodeFormat.EAN_13,
+      BarcodeFormat.EAN_8,
+      BarcodeFormat.UPC_A,
+      BarcodeFormat.UPC_E,
+      BarcodeFormat.CODE_128,
+      BarcodeFormat.CODE_39,
+      BarcodeFormat.ITF,
+    ];
+
+    // Utilizar BarcodeDetector nativo cuando esté disponible.
+    if ("BarcodeDetector" in window) {
+      try {
+        const disponibles =
+          await window.BarcodeDetector.getSupportedFormats();
+
+        const formatosNativos = [
+          "ean_13",
+          "ean_8",
+          "upc_a",
+          "upc_e",
+          "code_128",
+          "code_39",
+          "itf",
+        ].filter((formato) => disponibles.includes(formato));
+
+        if (formatosNativos.length > 0) {
+          const detector = new window.BarcodeDetector({
+            formats: formatosNativos,
+          });
+
+          detectorRef.current = detector;
+
+          async function detectar() {
+            if (
+              conexionRef.current !== pc ||
+              detectorRef.current !== detector
+            ) {
+              return;
+            }
+
+            try {
+              if (
+                video.readyState >= 2 &&
+                video.videoWidth > 0
+              ) {
+                const resultados = await detector.detect(video);
+
+                if (resultados.length > 0) {
+                  enviarCodigo(resultados[0].rawValue);
+                }
+              }
+            } catch {
+              // Algunos fotogramas no pueden analizarse.
+            }
+
+            if (
+              conexionRef.current === pc &&
+              detectorRef.current === detector
+            ) {
+              temporizadorRef.current = setTimeout(
+                detectar,
+                130
+              );
+            }
+          }
+
+          detectar();
+          return;
+        }
+      } catch {
+        // Si falla BarcodeDetector, utilizamos ZXing.
+      }
+    }
+
+    const hints = new Map();
+
+    hints.set(DecodeHintType.POSSIBLE_FORMATS, formatos);
+    hints.set(DecodeHintType.TRY_HARDER, true);
+
+    const lector = new BrowserMultiFormatReader(hints, {
+      delayBetweenScanAttempts: 150,
+      delayBetweenScanSuccess: 650,
+    });
+
+    const controles = await lector.decodeFromVideoElement(
+      video,
+      (resultado) => {
+        if (
+          resultado &&
+          conexionRef.current === pc
+        ) {
+          enviarCodigo(resultado.getText());
+        }
+      }
+    );
+
+    if (conexionRef.current === pc) {
+      controlesRef.current = controles;
+    } else {
+      controles.stop();
+    }
+  }
+
   async function iniciar() {
-    if (iniciando || transmitiendo) return;
+    if (iniciandoRef.current || transmitiendo) return;
 
     if (!ownerUid || !sesionId) {
-      setEstado("Enlace de conexión inválido.");
+      setEstado("El enlace de conexión no es válido.");
       return;
     }
 
@@ -80,16 +315,17 @@ export default function CamaraCelular() {
       !navigator.mediaDevices?.getUserMedia ||
       !window.RTCPeerConnection
     ) {
-      setEstado("El navegador no admite la cámara o WebRTC.");
+      setEstado("Este navegador no admite cámara o WebRTC.");
       return;
     }
 
+    iniciandoRef.current = true;
     setIniciando(true);
 
     try {
-      detener();
-      setIniciando(true);
-      setEstado("Solicitando cámara trasera...");
+      limpiarConexion();
+
+      setEstado("Conectando cámara trasera...");
 
       const referencia = doc(
         db,
@@ -102,9 +338,7 @@ export default function CamaraCelular() {
       const snapshot = await getDoc(referencia);
 
       if (!snapshot.exists()) {
-        throw new Error(
-          "La sesión no existe o no tienes permiso."
-        );
+        throw new Error("La sesión no existe.");
       }
 
       const datos = snapshot.data();
@@ -113,7 +347,7 @@ export default function CamaraCelular() {
         !datos.oferta ||
         Date.now() > Number(datos.venceEn || 0)
       ) {
-        throw new Error("La sesión ha expirado.");
+        throw new Error("La sesión expiró. Genera otro QR.");
       }
 
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -122,17 +356,26 @@ export default function CamaraCelular() {
           facingMode: { ideal: "environment" },
           width: { ideal: 1920 },
           height: { ideal: 1080 },
+          frameRate: { ideal: 30 },
         },
       });
 
       streamRef.current = stream;
 
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        await videoRef.current.play();
-      }
+      const pista = obtenerPista();
+      const capacidades = pista?.getCapabilities?.() || {};
+
+      setZoomMax(capacidades.zoom?.max ?? 1);
+      setZoom(capacidades.zoom?.min ?? 1);
+      setPermiteLinterna(Boolean(capacidades.torch));
+
+      const video = videoRef.current;
+
+      video.srcObject = stream;
+      await video.play();
 
       const pc = new RTCPeerConnection(SERVIDORES);
+
       conexionRef.current = pc;
 
       stream.getTracks().forEach((track) => {
@@ -150,15 +393,15 @@ export default function CamaraCelular() {
 
         if (pc.connectionState === "connected") {
           setTransmitiendo(true);
-          setEstado("🔴 Transmitiendo a POS Init");
-        } else if (
+          setEstado("🟢 Conectado. Escanea un producto.");
+        }
+
+        if (
           pc.connectionState === "failed" ||
           pc.connectionState === "disconnected"
         ) {
           setTransmitiendo(false);
-          setEstado(
-            "Conexión interrumpida. Revisa la computadora."
-          );
+          setEstado("Se perdió la conexión con POS Init.");
         }
       };
 
@@ -169,22 +412,28 @@ export default function CamaraCelular() {
       const respuesta = await pc.createAnswer();
       await pc.setLocalDescription(respuesta);
 
-      await new Promise((resolve) => {
+      await new Promise((resolver) => {
         if (pc.iceGatheringState === "complete") {
-          resolve();
+          resolver();
           return;
         }
 
-        const timeout = setTimeout(resolve, 8000);
+        const timeout = setTimeout(resolver, 8000);
+
+        const verificar = () => {
+          if (pc.iceGatheringState === "complete") {
+            clearTimeout(timeout);
+            pc.removeEventListener(
+              "icegatheringstatechange",
+              verificar
+            );
+            resolver();
+          }
+        };
 
         pc.addEventListener(
           "icegatheringstatechange",
-          () => {
-            if (pc.iceGatheringState === "complete") {
-              clearTimeout(timeout);
-              resolve();
-            }
-          }
+          verificar
         );
       });
 
@@ -196,93 +445,41 @@ export default function CamaraCelular() {
         estado: "conectando",
       });
 
-      setEstado("Conectando con la computadora...");
+      await iniciarLector(video, pc);
 
-      // Leer directamente desde el celular,
-      // sin depender de la imagen comprimida de WebRTC.
-      const hints = new Map();
-
-      hints.set(DecodeHintType.POSSIBLE_FORMATS, [
-        BarcodeFormat.EAN_13,
-        BarcodeFormat.EAN_8,
-        BarcodeFormat.UPC_A,
-        BarcodeFormat.UPC_E,
-        BarcodeFormat.CODE_128,
-        BarcodeFormat.CODE_39,
-        BarcodeFormat.ITF,
-      ]);
-
-      hints.set(DecodeHintType.TRY_HARDER, true);
-
-      const lector = new BrowserMultiFormatReader(hints, {
-        delayBetweenScanAttempts: 180,
-        delayBetweenScanSuccess: 800,
-      });
-
-      const controles = await lector.decodeFromVideoElement(
-        videoRef.current,
-        (resultado) => {
-          if (!resultado || conexionRef.current !== pc) return;
-
-          const codigo = String(resultado.getText() || "")
-            .replace(/\s+/g, "")
-            .trim();
-
-          if (!codigo) return;
-
-          const ahora = Date.now();
-
-          if (
-            ultimoRef.current.codigo === codigo &&
-            ahora - ultimoRef.current.fecha < 1800
-          ) {
-            return;
-          }
-
-          if (canalRef.current?.readyState !== "open") {
-            return;
-          }
-
-          ultimoRef.current = {
-            codigo,
-            fecha: ahora,
-          };
-
-          canalRef.current.send(
-            JSON.stringify({
-              tipo: "codigo",
-              codigo,
-            })
-          );
-
-          setUltimoCodigo(codigo);
-
-          navigator.vibrate?.(70);
-        }
-      );
-
-      if (conexionRef.current === pc) {
-        controlesRef.current = controles;
-      } else {
-        controles.stop();
-      }
+      setEstado("Esperando conexión con la computadora...");
     } catch (error) {
-      detener();
+      limpiarConexion();
       setEstado(`Error: ${error.message}`);
     } finally {
+      iniciandoRef.current = false;
       setIniciando(false);
     }
   }
 
+  function buscarManual(evento) {
+    evento.preventDefault();
+
+    const codigo = limpiarCodigo(codigoManual);
+
+    if (!codigo) return;
+
+    if (enviarCodigo(codigo)) {
+      setCodigoManual("");
+      setMostrarManual(false);
+    }
+  }
+
   const boton = {
-    width: "100%",
-    padding: 17,
+    minHeight: 56,
+    padding: "12px 16px",
+    borderRadius: 14,
+    border: "1px solid #475569",
     color: "#fff",
-    border: "none",
-    borderRadius: 16,
     fontSize: 17,
-    fontWeight: 900,
+    fontWeight: 800,
     cursor: "pointer",
+    background: "#1e293b",
   };
 
   return (
@@ -290,20 +487,19 @@ export default function CamaraCelular() {
       style={{
         position: "fixed",
         inset: 0,
-        width: "100vw",
         height: "100dvh",
-        overflow: "hidden",
-        background: "#020817",
+        background: "#020617",
         color: "#fff",
         fontFamily: "Arial, sans-serif",
+        overflow: "hidden",
         zIndex: 99999,
       }}
     >
       <video
         ref={videoRef}
         autoPlay
-        muted
         playsInline
+        muted
         style={{
           position: "absolute",
           inset: 0,
@@ -314,87 +510,72 @@ export default function CamaraCelular() {
         }}
       />
 
-      <div
-        style={{
-          position: "absolute",
-          inset: 0,
-          background:
-            "linear-gradient(to bottom, #0009, transparent 30%, transparent 70%, #000c)",
-          pointerEvents: "none",
-        }}
-      />
-
+      {/* Encabezado */}
       <header
         style={{
           position: "absolute",
-          top: "max(20px, env(safe-area-inset-top))",
-          left: 20,
-          right: 20,
+          top: "max(12px, env(safe-area-inset-top))",
+          left: 12,
+          right: 12,
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
+          gap: 10,
+          padding: 12,
+          borderRadius: 16,
+          background: "#020617dd",
         }}
       >
         <div>
-          <strong style={{ fontSize: 22 }}>
+          <strong style={{ fontSize: 21 }}>
             📱 POS Init
           </strong>
-
           <div style={{ fontSize: 12 }}>
-            Escáner inalámbrico
+            Escáner de productos
           </div>
         </div>
 
         <span
           style={{
-            padding: "8px 12px",
-            borderRadius: 30,
-            background: transmitiendo ? "#059669" : "#334155",
+            background: transmitiendo ? "#166534" : "#475569",
+            padding: "10px 12px",
+            borderRadius: 20,
+            fontSize: 12,
+            fontWeight: 800,
           }}
         >
-          {transmitiendo ? "● ACTIVA" : "○ SIN CONECTAR"}
+          {transmitiendo ? "● CONECTADO" : "○ SIN CONEXIÓN"}
         </span>
       </header>
 
+      {/* Guía de lectura */}
       <div
         style={{
           position: "absolute",
-          left: "8%",
-          right: "8%",
-          top: "50%",
+          left: "5%",
+          right: "5%",
+          top: "42%",
+          height: 120,
           transform: "translateY(-50%)",
-          height: 170,
-          border: "2px solid #22d3ee",
-          borderRadius: 22,
+          border: "3px solid #22d3ee",
+          borderRadius: 18,
+          boxShadow: "0 0 15px #22d3ee55",
           pointerEvents: "none",
         }}
       >
         <div
           style={{
             position: "absolute",
-            left: "8%",
-            right: "8%",
             top: "50%",
+            left: "5%",
+            right: "5%",
             height: 2,
             background: "#22d3ee",
-            boxShadow: "0 0 16px #22d3ee",
           }}
         />
       </div>
 
-      <div
-        style={{
-          position: "absolute",
-          top: "calc(50% + 110px)",
-          left: 20,
-          right: 20,
-          textAlign: "center",
-          textShadow: "0 2px 8px #000",
-        }}
-      >
-        Coloca el código de barras dentro del recuadro
-      </div>
-
+      {/* Controles inferiores */}
       <footer
         style={{
           position: "absolute",
@@ -402,23 +583,155 @@ export default function CamaraCelular() {
           left: 0,
           right: 0,
           padding:
-            "24px 20px max(28px, env(safe-area-inset-bottom))",
-          background:
-            "linear-gradient(to top, #000e, transparent)",
+            "14px 14px max(16px, env(safe-area-inset-bottom))",
+          background: "#020617ed",
+          borderTop: "1px solid #334155",
+          maxHeight: "54dvh",
+          overflowY: "auto",
         }}
       >
-        <p
+        <div
           role="status"
           style={{
+            fontSize: 13,
             textAlign: "center",
+            marginBottom: 12,
+            lineHeight: 1.5,
           }}
         >
           {estado}
+          {ultimoCodigo && (
+            <div>
+              Último código: <strong>{ultimoCodigo}</strong>
+            </div>
+          )}
+        </div>
 
-          {ultimoCodigo
-            ? ` · Último código: ${ultimoCodigo}`
-            : ""}
-        </p>
+        {/* Zoom */}
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(4, 1fr)",
+            gap: 8,
+            marginBottom: 10,
+          }}
+        >
+          {[1, 2, 3, 4].map((valor) => (
+            <button
+              key={valor}
+              type="button"
+              disabled={!transmitiendo || zoomMax < valor}
+              onClick={() => cambiarZoom(valor)}
+              style={{
+                ...boton,
+                background:
+                  Math.abs(zoom - valor) < 0.1
+                    ? "#0369a1"
+                    : "#1e293b",
+                opacity:
+                  !transmitiendo || zoomMax < valor
+                    ? 0.45
+                    : 1,
+              }}
+            >
+              {valor}×
+            </button>
+          ))}
+        </div>
+
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "1fr 1fr 1fr",
+            gap: 8,
+            marginBottom: 10,
+          }}
+        >
+          <button
+            type="button"
+            style={boton}
+            disabled={!transmitiendo}
+            onClick={() => cambiarZoom(zoom - 0.5)}
+          >
+            ➖ Zoom
+          </button>
+
+          <button
+            type="button"
+            style={boton}
+            disabled={!transmitiendo}
+            onClick={() => cambiarZoom(zoom + 0.5)}
+          >
+            ➕ Zoom
+          </button>
+
+          <button
+            type="button"
+            style={{
+              ...boton,
+              background: linterna ? "#a16207" : "#1e293b",
+            }}
+            disabled={!transmitiendo || !permiteLinterna}
+            onClick={cambiarLinterna}
+          >
+            💡 Luz
+          </button>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => setMostrarManual(!mostrarManual)}
+          style={{
+            ...boton,
+            width: "100%",
+            marginBottom: 10,
+            background: "#0f766e",
+          }}
+        >
+          🔢 Buscar producto por número
+        </button>
+
+        {mostrarManual && (
+          <form
+            onSubmit={buscarManual}
+            style={{
+              padding: 12,
+              background: "#0f172a",
+              borderRadius: 14,
+              marginBottom: 10,
+            }}
+          >
+            <input
+              type="text"
+              inputMode="numeric"
+              value={codigoManual}
+              onChange={(e) =>
+                setCodigoManual(e.target.value)
+              }
+              placeholder="Ej. 7702111828827"
+              style={{
+                width: "100%",
+                boxSizing: "border-box",
+                padding: 15,
+                fontSize: 20,
+                borderRadius: 12,
+                border: "1px solid #64748b",
+                marginBottom: 10,
+              }}
+            />
+
+            <button
+              type="submit"
+              style={{
+                ...boton,
+                width: "100%",
+                background: "#2563eb",
+              }}
+            >
+              🔎 Buscar y enviar a POS Init
+            </button>
+          </form>
+        )}
 
         {!transmitiendo ? (
           <button
@@ -427,6 +740,7 @@ export default function CamaraCelular() {
             disabled={iniciando}
             style={{
               ...boton,
+              width: "100%",
               background: "#2563eb",
               opacity: iniciando ? 0.6 : 1,
             }}
@@ -441,10 +755,11 @@ export default function CamaraCelular() {
             onClick={detener}
             style={{
               ...boton,
-              background: "#dc2626",
+              width: "100%",
+              background: "#b91c1c",
             }}
           >
-            ⏹ Detener transmisión
+            ⏹ Desconectar cámara
           </button>
         )}
       </footer>
