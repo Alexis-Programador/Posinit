@@ -225,7 +225,8 @@ function CorteCaja({
     if (
       contado == null ||
       !Number.isFinite(contado) ||
-      contado < 0
+      contado < 0 ||
+      !/^\d+(?:\.\d{1,2})?$/.test(efectivoContado)
     ) {
       setError("La cantidad de efectivo contado no es válida.");
       return;
@@ -334,8 +335,7 @@ function CorteCaja({
 
       if (
         event.key === "F1" ||
-        event.key === "Escape" ||
-        event.key === "Backspace"
+        event.key === "Escape"
       ) {
         event.preventDefault();
 
@@ -427,12 +427,27 @@ function CorteCaja({
             id="efectivoContado"
             type="number"
             min="0"
-            step="0.01"
+            step="1"
             placeholder="0.00"
             value={efectivoContado}
             onChange={(event) => {
-              setEfectivoContado(event.target.value);
+              const valor = event.target.value;
+              if (!/^(?:\d+)?(?:\.\d{0,2})?$/.test(valor)) return;
+              setEfectivoContado(valor);
               setError("");
+            }}
+            onKeyDown={(event) => {
+              if (event.key !== "ArrowUp" && event.key !== "ArrowDown") return;
+              event.preventDefault();
+              const actual = Number(efectivoContado || 0);
+              const siguiente = Math.max(0, Math.round(actual * 100 + (event.key === "ArrowUp" ? 100 : -100)) / 100);
+              setEfectivoContado(siguiente.toFixed(2));
+            }}
+            onWheel={(event) => {
+              if (document.activeElement !== event.currentTarget) return;
+              const actual = Number(efectivoContado || 0);
+              const siguiente = Math.max(0, Math.round(actual * 100 + (event.deltaY < 0 ? 100 : -100)) / 100);
+              setEfectivoContado(siguiente.toFixed(2));
             }}
             autoFocus
           />
@@ -483,7 +498,7 @@ function CorteCaja({
         </div>
 
         <div className="corte-ayuda-tecla">
-          Backspace · Cancelar  |  Enter · Realizar corte
+          Esc · Cancelar  |  Enter · Realizar corte
         </div>
       </section>
     </div>

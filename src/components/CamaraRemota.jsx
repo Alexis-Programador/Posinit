@@ -23,20 +23,11 @@ export default function CamaraRemota({
   ownerUid,
   onStream,
   onCerrar,
-  onCodigo,
 }) {
   const conexionRef = useRef(null);
   const cancelarRef = useRef(null);
   const sesionRef = useRef(null);
-
   const onStreamRef = useRef(onStream);
-  const onCodigoRef = useRef(onCodigo);
-
-  const ultimoCodigoRef = useRef({
-    codigo: "",
-    fecha: 0,
-  });
-
   const operacionRef = useRef(0);
   const streamPendienteRef = useRef(null);
 
@@ -47,7 +38,6 @@ export default function CamaraRemota({
   const [generando, setGenerando] = useState(false);
 
   onStreamRef.current = onStream;
-  onCodigoRef.current = onCodigo;
 
   async function desconectar() {
     operacionRef.current += 1;
@@ -131,55 +121,6 @@ export default function CamaraRemota({
 
       const pc = new RTCPeerConnection(SERVIDORES);
       conexionRef.current = pc;
-
-      // El celular envía los códigos por este canal.
-      const canal = pc.createDataChannel(
-        "pos-init-codigos",
-        { ordered: true }
-      );
-
-      canal.onmessage = (evento) => {
-        if (operacion !== operacionRef.current) return;
-
-        try {
-          const dato = JSON.parse(evento.data);
-
-          if (
-            dato.tipo !== "codigo" ||
-            typeof dato.codigo !== "string"
-          ) {
-            return;
-          }
-
-          const codigo = dato.codigo
-            .replace(/\s+/g, "")
-            .trim();
-
-          if (!codigo || codigo.length > 128) return;
-
-          const ahora = Date.now();
-
-          if (
-            ultimoCodigoRef.current.codigo === codigo &&
-            ahora - ultimoCodigoRef.current.fecha < 1800
-          ) {
-            return;
-          }
-
-          ultimoCodigoRef.current = {
-            codigo,
-            fecha: ahora,
-          };
-
-          onCodigoRef.current?.(codigo);
-          setEstado(`📦 Código recibido: ${codigo}`);
-        } catch (error) {
-          console.warn(
-            "POS Init - Código remoto inválido:",
-            error
-          );
-        }
-      };
 
       pc.addTransceiver("video", {
         direction: "recvonly",
@@ -554,68 +495,9 @@ export default function CamaraRemota({
             ⏹ Desconectar
           </button>
 
-          {onCerrar && (
-            <button
-              type="button"
-              onClick={onCerrar}
-              style={{
-                ...boton,
-                flex: 1,
-                background: "#e2e8f0",
-                color: "#334155",
-              }}
-            >
-              Cerrar
-            </button>
-          )}
         </div>
       </div>
 
-      <div
-        style={{
-          marginTop: 16,
-          padding: 18,
-          borderRadius: 18,
-          background: "#f8fafc",
-          border: "1px solid #cbd5e1",
-        }}
-      >
-        <h3
-          style={{
-            color: "#0f172a",
-            marginTop: 0,
-          }}
-        >
-          📱 Conectar con la app POS Init
-        </h3>
-
-        <p
-          style={{
-            color: "#475569",
-            fontSize: 13,
-            lineHeight: 1.5,
-          }}
-        >
-          Próximamente podrás vincular directamente
-          la aplicación móvil de POS Init con
-          esta computadora.
-        </p>
-
-        <button
-          type="button"
-          disabled
-          style={{
-            ...boton,
-            width: "100%",
-            background: "#cbd5e1",
-            color: "#475569",
-            cursor: "not-allowed",
-          }}
-        >
-          🔗 Vincular aplicación móvil
-          (próximamente)
-        </button>
-      </div>
     </section>
   );
 }
