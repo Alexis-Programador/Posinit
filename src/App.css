@@ -5318,3 +5318,55 @@ body:has(.pagina-pin-seguro),
   }
 }
 /* En movil, conservar una sola columna y el flujo vertical existente. */
+
+/* ==========================================
+   POS INIT - PRODUCTOS MAS GRANDES
+   ========================================== */
+
+@media (min-width: 901px) {
+  .ventas-pagina .catalogo .productos-grid {
+    display: grid !important;
+    grid-template-columns: repeat(
+      auto-fill,
+      minmax(240px, 260px)
+    ) !important;
+    gap: 16px !important;
+    justify-content: start !important;
+    align-content: start !important;
+  }
+
+  .ventas-pagina .catalogo .producto-card {
+    width: 100% !important;
+    max-width: 260px !important;
+    min-width: 0 !important;
+    height: 350px !important;
+    overflow: hidden !important;
+    display: flex !important;
+    flex-direction: column !important;
+  }
+
+  .ventas-pagina .catalogo .producto-imagen {
+    height: 270px !important;
+    min-height: 270px !important;
+    padding: 8px !important;
+    display: flex !important;
+    justify-content: center !important;
+    align-items: center !important;
+    overflow: hidden !important;
+  }
+
+  .ventas-pagina .catalogo .producto-imagen img {
+    width: 100% !important;
+    height: 100% !important;
+    max-width: 100% !important;
+    max-height: 100% !important;
+    object-fit: contain !important;
+    object-position: center !important;
+  }
+
+  .ventas-pagina .catalogo .producto-info {
+    flex: 1 !important;
+    min-height: 0 !important;
+    padding: 8px 10px !important;
+  }
+}
