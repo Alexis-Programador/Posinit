@@ -3059,7 +3059,7 @@ window.onload = function () {
           </div>
         </div>
         <div className="ventas-header-acciones" style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <button type="button" className="ventas-cerrar" onClick={async () => { try { if (!document.fullscreenElement) await document.documentElement.requestFullscreen(); else await document.exitFullscreen(); } catch (err) { setError("Pantalla completa requiere autorización del navegador."); } }} title="Pantalla completa (equivalente a F11)">⛶ Pantalla completa</button>
+          <button type="button" className="ventas-cerrar" onClick={async () => { try { if (!document.fullscreenElement) await document.documentElement.requestFullscreen(); else await document.exitFullscreen(); } catch (err) { setError("Pantalla completa requiere autorización del navegador."); } }} title="Activar o desactivar pantalla completa (F11)">Pantalla completa · F11</button>
           {permisoNotificacion !== "granted" && avisosHabilitados && (
             <button type="button" className="ventas-cerrar" onClick={activarNotificaciones} title="Activar notificaciones del sistema">🔔 Activar avisos</button>
           )}
@@ -3546,7 +3546,7 @@ window.onload = function () {
           <span><strong>{usuario?.nombre || "Usuario"}</strong><small>Usuario {usuario?.numeroUsuario || "—"}</small></span>
         </div>
         {efectivoEnCaja >= LIMITE_RETIRO && (
-          <div className="pos-ventas-retiro" role="status">⚠️ <span><strong>Retiro requerido</strong><small>${efectivoEnCaja.toFixed(2)} en caja</small></span></div>
+          <div className="pos-ventas-retiro" role="status"><span aria-hidden="true">⚠️</span><strong>Retiro requerido</strong><small>${efectivoEnCaja.toFixed(2)} en caja</small></div>
         )}
         <div className="pos-ventas-tiempo"><ClimaHoraPos actualizarToken={actualizacionClima} cancelarToken={cancelacionClima} /></div>
       </footer>
@@ -3765,7 +3765,6 @@ window.onload = function () {
                 <strong>F8 · 📍 Ubicación y clima</strong>
                 <span>Validar ubicación y actualizar el clima.</span>
               </button>
-              <button type="button" style={estiloOpcionMenu} onClick={()=>abrirConfiguracion("camara")}><strong>📱 Conectar celular por internet</strong><span>Abre F6 y genera un QR para transmitir video.</span></button>
 
               <button type="button" style={estiloOpcionMenu}
                 onClick={() => {
