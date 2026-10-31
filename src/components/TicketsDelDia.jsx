@@ -27,11 +27,14 @@ function htmlTicket(venta, negocio, usuario) {
   const cambio = venta.cambio == null ? "" : `<p>Cambio: ${moneda(venta.cambio)}</p>`;
   return `<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Ticket ${escapar(venta.folio || venta.documentoId || "")}</title><style>
     body{font-family:ui-monospace,Consolas,monospace;max-width:350px;margin:22px auto;padding:12px;color:#111}h2,p{text-align:center;margin:7px 0}table{width:100%;border-collapse:collapse;margin:16px 0}td,th{border-bottom:1px dashed #aaa;padding:7px 2px;font-size:12px}.r{text-align:right}.c{text-align:center}.total{text-align:right;font-size:21px;font-weight:800;border-top:2px dashed #333;padding-top:12px}.acciones{display:flex;gap:8px;margin-top:25px}.acciones button{flex:1;padding:12px;border:1px solid #aaa;border-radius:8px;background:#f4f6fa;cursor:pointer}@media print{.acciones{display:none}body{margin:0 auto}}</style></head><body>
-    <h2>${escapar(negocio || "POS Init")}</h2><p>Ticket de venta</p><p>${Number.isFinite(fecha) ? escapar(new Date(fecha).toLocaleString("es-MX")) : ""}</p>
+    <h2>${escapar(negocio || "Negocio")}</h2><p>Ticket de venta</p><p>${Number.isFinite(fecha) ? escapar(new Date(fecha).toLocaleString("es-MX")) : ""}</p>
     <p>Folio: ${escapar(venta.folio || venta.documentoId || "Sin folio")}</p><p>Cajero: ${escapar(venta.nombreUsuario || usuario?.nombre || "")}</p>
     <table><thead><tr><th>Producto</th><th>Cant.</th><th>Importe</th></tr></thead><tbody>${filas}</tbody></table>
     <div class="total">Total: ${moneda(venta.total)}</div><p>Método: ${pago}</p>${recibido}${cambio}
-    <div class="acciones"><button onclick="window.print()">Imprimir / guardar PDF</button></div></body></html>`;
+    <p class="marca-pos">Punto de venta gestionado con <strong>POS Init</strong></p>
+    <div class="acciones"><button onclick="window.print()">Imprimir / guardar PDF</button><button onclick="window.close()">Cerrar</button></div>
+    <script>window.addEventListener("keydown", function(event) { if (event.key === "Escape") { event.preventDefault(); window.close(); } });<\/script>
+    </body></html>`;
 }
 
 export default function TicketsDelDia({ ownerUid, usuario, nombreEmpresa, onCerrar }) {
@@ -68,7 +71,7 @@ export default function TicketsDelDia({ ownerUid, usuario, nombreEmpresa, onCerr
   const abrir = (venta) => {
     const ventana = window.open("", "_blank", "width=460,height=760");
     if (!ventana) { setError("Permite las ventanas emergentes para imprimir el ticket."); return; }
-    ventana.document.open(); ventana.document.write(htmlTicket(venta, nombreEmpresa, usuario)); ventana.document.close();
+    ventana.document.open(); ventana.document.write(htmlTicket(venta, nombreEmpresa, usuario)); ventana.document.close(); ventana.focus();
   };
   const descargar = (venta) => {
     const archivo = new Blob([htmlTicket(venta, nombreEmpresa, usuario)], { type: "text/html;charset=utf-8" });

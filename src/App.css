@@ -5412,3 +5412,22 @@ body:has(.pagina-pin-seguro),
     gap: 12px !important;
   }
 }
+
+/* POS Init: imagen completa dentro del recuadro gris, sin recortes.
+   Agregar AL FINAL de src/App.css, sin sustituir estilos anteriores. */
+.ventas-pagina .catalogo .producto-imagen,
+.ventas-pagina .producto-imagen {
+  box-sizing: border-box !important;
+  padding: 7px !important;
+  overflow: hidden !important;
+}
+.ventas-pagina .catalogo .producto-imagen img,
+.ventas-pagina .producto-imagen img {
+  display: block !important;
+  width: 100% !important;
+  height: 100% !important;
+  max-width: 100% !important;
+  max-height: 100% !important;
+  object-fit: contain !important;
+  object-position: center center !important;
+}
