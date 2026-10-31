@@ -4992,14 +4992,13 @@ body:has(.pagina-pin-seguro),
 }
 
 /* =============================================================
-   POS INIT - CATALOGO CORREGIDO / 31-10-2026
-   5 tarjetas proporcionadas, sin estirar y sin recortar imagenes.
-   Este bloque sustituye los dos bloques finales anteriores.
+   POS INIT - CATALOGO VERTICAL / 31-10-2026
+   Tarjetas mas altas y menos anchas. Imagen completa y visible.
    ============================================================= */
 .ventas-pagina .catalogo .productos-grid {
   display: grid !important;
-  grid-template-columns: repeat(5, minmax(0, 210px)) !important;
-  grid-auto-rows: 202px !important;
+  grid-template-columns: repeat(5, minmax(0, 180px)) !important;
+  grid-auto-rows: 244px !important;
   gap: 12px !important;
   justify-content: start !important;
   align-content: start !important;
@@ -5010,8 +5009,8 @@ body:has(.pagina-pin-seguro),
   box-sizing: border-box !important;
   width: 100% !important;
   min-width: 0 !important;
-  max-width: 210px !important;
-  height: 202px !important;
+  max-width: 180px !important;
+  height: 244px !important;
   min-height: 0 !important;
   display: flex !important;
   flex-direction: column !important;
@@ -5023,9 +5022,9 @@ body:has(.pagina-pin-seguro),
 .ventas-pagina .producto-imagen {
   box-sizing: border-box !important;
   width: 100% !important;
-  height: 139px !important;
-  min-height: 139px !important;
-  flex: 0 0 139px !important;
+  height: 176px !important;
+  min-height: 176px !important;
+  flex: 0 0 176px !important;
   padding: 5px !important;
   display: flex !important;
   align-items: center !important;
@@ -5050,18 +5049,17 @@ body:has(.pagina-pin-seguro),
   box-sizing: border-box !important;
   flex: 1 1 auto !important;
   min-height: 0 !important;
-  padding: 6px 9px !important;
+  padding: 7px 9px !important;
 }
 
-/* Cuando no caben cinco tarjetas, bajamos columnas sin desbordar. */
-@media (max-width: 1499px) {
+@media (max-width: 1250px) {
   .ventas-pagina .catalogo .productos-grid {
-    grid-template-columns: repeat(4, minmax(0, 210px)) !important;
+    grid-template-columns: repeat(4, minmax(0, 180px)) !important;
   }
 }
-@media (max-width: 1199px) {
+@media (max-width: 1050px) {
   .ventas-pagina .catalogo .productos-grid {
-    grid-template-columns: repeat(3, minmax(0, 210px)) !important;
+    grid-template-columns: repeat(3, minmax(0, 180px)) !important;
   }
 }
 @media (max-width: 900px) {
@@ -5074,18 +5072,18 @@ body:has(.pagina-pin-seguro),
 @media (max-width: 600px) {
   .ventas-pagina .catalogo .productos-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-    grid-auto-rows: 190px !important;
+    grid-auto-rows: 220px !important;
     gap: 10px !important;
   }
   .ventas-pagina .catalogo .producto-card,
   .ventas-pagina .producto-card {
     max-width: none !important;
-    height: 190px !important;
+    height: 220px !important;
   }
   .ventas-pagina .catalogo .producto-imagen,
   .ventas-pagina .producto-imagen {
-    height: 125px !important;
-    min-height: 125px !important;
-    flex: 0 0 125px !important;
+    height: 152px !important;
+    min-height: 152px !important;
+    flex: 0 0 152px !important;
   }
 }
