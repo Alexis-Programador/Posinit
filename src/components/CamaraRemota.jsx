@@ -29,6 +29,7 @@ export default function CamaraRemota({
   const sesionRef = useRef(null);
   const onStreamRef = useRef(onStream);
   const operacionRef = useRef(0);
+  const streamPendienteRef = useRef(null);
 
   const [url, setUrl] = useState("");
   const [estado, setEstado] = useState("Sin conectar");
@@ -47,6 +48,7 @@ export default function CamaraRemota({
     conexionRef.current?.close();
     conexionRef.current = null;
 
+    streamPendienteRef.current = null;
     onStreamRef.current?.(null);
 
     const referencia = sesionRef.current;
@@ -131,7 +133,11 @@ export default function CamaraRemota({
           evento.streams?.[0] ||
           new MediaStream([evento.track]);
 
-        onStreamRef.current?.(stream);
+        streamPendienteRef.current = stream;
+
+        if (pc.connectionState === "connected") {
+          onStreamRef.current?.(stream);
+        }
       };
 
       pc.onconnectionstatechange = () => {
@@ -139,6 +145,13 @@ export default function CamaraRemota({
 
         if (pc.connectionState === "connected") {
           setConectado(true);
+
+          if (streamPendienteRef.current) {
+            onStreamRef.current?.(
+              streamPendienteRef.current
+            );
+          }
+
           setEstado("📱 Celular conectado");
         }
 
@@ -148,6 +161,7 @@ export default function CamaraRemota({
           pc.connectionState === "closed"
         ) {
           setConectado(false);
+          streamPendienteRef.current = null;
           onStreamRef.current?.(null);
 
           setEstado(

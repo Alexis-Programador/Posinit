@@ -10,7 +10,6 @@ export default function CamaraIntegrada({
   esperandoCelular = false,
 }) {
   const videoRef = useRef(null);
-  const controlesRef = useRef(null);
   const datosRef = useRef({ productos, onProducto });
   const ultimoRef = useRef({ codigo: "", tiempo: 0 });
 
@@ -22,34 +21,25 @@ export default function CamaraIntegrada({
   }, [productos, onProducto]);
 
   useEffect(() => {
-    let cancelado = false;
-    let controles = null;
-
     const video = videoRef.current;
-
-    controlesRef.current?.stop();
-    controlesRef.current = null;
-
-    if (video) {
-      video.pause();
-      video.srcObject = null;
-    }
-
-    if (!activa) {
-      setEstado("Cámara pausada");
-      setFuente("pausada");
-      return;
-    }
-
     if (!video) return;
 
+    let cancelado = false;
+    let controles = null;
+    let verificador = null;
+    let pista = null;
+
     const lector = new BrowserMultiFormatReader();
+
+    const remoto =
+      streamRemoto?.getVideoTracks().some(
+        (t) => t.readyState === "live"
+      ) || false;
 
     const alDetectar = (resultado) => {
       if (!resultado || cancelado) return;
 
       const codigo = String(resultado.getText() || "").trim();
-
       if (!codigo) return;
 
       const ahora = Date.now();
@@ -61,23 +51,17 @@ export default function CamaraIntegrada({
         return;
       }
 
-      ultimoRef.current = {
-        codigo,
-        tiempo: ahora,
-      };
+      ultimoRef.current = { codigo, tiempo: ahora };
 
       const {
         productos: lista,
         onProducto: agregar,
       } = datosRef.current;
 
-      const producto = lista.find((p) => {
-        const codigoProducto = String(
-          p.codigoBarras ?? p.codigo ?? ""
-        ).trim();
-
-        return codigoProducto === codigo;
-      });
+      const producto = lista.find(
+        (p) =>
+          String(p.codigoBarras ?? p.codigo ?? "").trim() === codigo
+      );
 
       if (producto) {
         agregar?.(producto);
@@ -87,14 +71,25 @@ export default function CamaraIntegrada({
       }
     };
 
-    async function iniciarCamara() {
+    async function iniciar() {
+      if (!activa) {
+        setFuente("pausada");
+        setEstado("Cámara pausada");
+        return;
+      }
+
+      setFuente("conectando");
+
+      setEstado(
+        remoto
+          ? "Recibiendo video del celular..."
+          : "Iniciando cámara USB..."
+      );
+
       try {
-        setFuente("conectando");
-
-        if (streamRemoto?.getVideoTracks().some((t) => t.readyState === "live")) {
-          setEstado("Conectando cámara del celular...");
-
+        if (remoto) {
           video.srcObject = streamRemoto;
+          video.muted = true;
 
           await video.play();
 
@@ -104,86 +99,116 @@ export default function CamaraIntegrada({
             video,
             alDetectar
           );
-
-          if (cancelado) {
-            controles?.stop();
-            return;
-          }
-
-          controlesRef.current = controles;
-
-          setFuente("celular");
-          setEstado("📱 Cámara del celular conectada");
-
-          return;
+        } else {
+          controles = await lector.decodeFromVideoDevice(
+            camaraId || undefined,
+            video,
+            alDetectar
+          );
         }
-
-        setEstado(
-          esperandoCelular
-            ? "Buscando cámara USB mientras se conecta el celular..."
-            : "Iniciando cámara USB..."
-        );
-
-        controles = await lector.decodeFromVideoDevice(
-          camaraId || undefined,
-          video,
-          alDetectar
-        );
 
         if (cancelado) {
           controles?.stop();
           return;
         }
 
-        controlesRef.current = controles;
+        pista = video.srcObject?.getVideoTracks?.()[0];
 
-        setFuente("usb");
-        setEstado("📷 Cámara USB conectada");
+        if (!pista || pista.readyState !== "live") {
+          throw new Error("No hay video activo");
+        }
+
+        // Verificar que realmente existan imágenes.
+        let intentosSinImagen = 0;
+
+        verificador = window.setInterval(() => {
+          if (cancelado) return;
+
+          if (pista.readyState !== "live") {
+            setFuente("error");
+            setEstado(
+              "La cámara dejó de transmitir. Reconecta el celular."
+            );
+            return;
+          }
+
+          if (
+            video.videoWidth > 0 &&
+            video.videoHeight > 0 &&
+            video.readyState >= 2
+          ) {
+            intentosSinImagen = 0;
+            setFuente(remoto ? "celular" : "usb");
+          } else {
+            intentosSinImagen += 1;
+
+            if (intentosSinImagen >= 5) {
+              setFuente("error");
+
+              setEstado(
+                remoto
+                  ? "Celular enlazado, pero no llegan imágenes. Reconecta."
+                  : "Cámara USB sin imagen. Revisa el dispositivo."
+              );
+            }
+          }
+        }, 1000);
+
+        if (video.videoWidth && video.videoHeight) {
+          setFuente(remoto ? "celular" : "usb");
+
+          setEstado(
+            remoto
+              ? "📱 Cámara del celular conectada"
+              : "📷 Cámara USB conectada"
+          );
+        } else {
+          setEstado("Esperando primeros fotogramas...");
+        }
       } catch (error) {
         if (cancelado) return;
 
-        console.error("POS Init - Error de cámara:", error);
-
+        console.error("POS Init - cámara:", error);
         setFuente("error");
 
         setEstado(
-          esperandoCelular
-            ? "Esperando celular. No se encontró cámara USB disponible."
-            : `No se pudo iniciar la cámara: ${
-                error.message || "Revisa los permisos"
-              }`
+          remoto
+            ? `Error en video del celular: ${error.message}`
+            : esperandoCelular
+            ? "Esperando celular; no hay cámara USB disponible."
+            : `Error en cámara USB: ${error.message}`
         );
       }
     }
 
-    iniciarCamara();
+    iniciar();
 
     return () => {
       cancelado = true;
 
-      controles?.stop();
-
-      if (controlesRef.current === controles) {
-        controlesRef.current = null;
+      if (verificador) {
+        window.clearInterval(verificador);
       }
 
-      if (video) {
-        video.pause();
+      controles?.stop();
+      video.pause();
+
+      // No detener las pistas del celular: pertenecen a WebRTC.
+      if (video.srcObject === streamRemoto || !remoto) {
         video.srcObject = null;
       }
     };
   }, [activa, camaraId, streamRemoto, esperandoCelular]);
 
-  const etiqueta =
-    !activa
-      ? "⏸ PAUSADA"
-      : fuente === "celular"
-      ? "📱 CONECTADA"
-      : fuente === "usb"
-      ? "● EN VIVO"
-      : fuente === "error"
-      ? "⚠ SIN CÁMARA"
-      : "◌ CONECTANDO";
+  const etiqueta = !activa
+    ? "⏸ PAUSADA"
+    : fuente === "celular"
+    ? "📱 CELULAR"
+    : fuente === "usb"
+    ? "● USB EN VIVO"
+    : fuente === "error"
+    ? "⚠ SIN IMAGEN"
+    : "◌ CONECTANDO";
 
   return (
     <section
@@ -196,12 +221,7 @@ export default function CamaraIntegrada({
       </div>
 
       <div className="pos-camara-visor">
-        <video
-          ref={videoRef}
-          autoPlay
-          playsInline
-          muted
-        />
+        <video ref={videoRef} autoPlay playsInline muted />
 
         <div
           className="pos-camara-guia"
