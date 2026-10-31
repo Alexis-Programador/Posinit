@@ -2990,7 +2990,7 @@ window.onload = function () {
               ""}
           </p>
 
-          {efectivoEnCaja >= LIMITE_RETIRO && (
+          {false && efectivoEnCaja >= LIMITE_RETIRO && (
             <div
               style={{
                 marginTop: "6px",
@@ -3010,9 +3010,49 @@ window.onload = function () {
             </div>
           )}
           </div>
-          <ClimaHoraPos actualizarToken={actualizacionClima} cancelarToken={cancelacionClima} />
+
         </div>
 
+        <div className="pos-ventas-herramientas">
+          <div className="pos-ventas-buscador">
+            <input
+              ref={
+                buscadorRef
+              }
+              className="buscar-producto"
+              type="search"
+              placeholder="Buscar producto o código..."
+              value={
+                busqueda
+              }
+              onChange={(e) =>
+                setBusqueda(
+                  e.target.value
+                )
+              }
+              autoFocus
+            />
+          </div>
+          <div className="pos-ventas-camara">
+            <div className="pos-camara-cabecera">
+              <CamaraIntegrada
+                productos={productos}
+                onProducto={agregarProducto}
+                streamRemoto={streamRemoto}
+                camaraId={camaraElegida}
+                activa={camaraActiva && !cajaEnEspera}
+                esperandoCelular={false}
+              />
+              <button
+                type="button"
+                className="pos-camara-boton"
+                onClick={() => setCamaraActiva((actual) => !actual)}
+              >
+                {camaraActiva ? "⏸ Pausar cámara" : "▶ Activar cámara"}
+              </button>
+            </div>
+          </div>
+        </div>
         <div className="ventas-header-acciones" style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <button type="button" className="ventas-cerrar" onClick={async () => { try { if (!document.fullscreenElement) await document.documentElement.requestFullscreen(); else await document.exitFullscreen(); } catch (err) { setError("Pantalla completa requiere autorización del navegador."); } }} title="Pantalla completa (equivalente a F11)">⛶ Pantalla completa</button>
           {permisoNotificacion !== "granted" && avisosHabilitados && (
@@ -3044,7 +3084,7 @@ window.onload = function () {
         className="ventas-contenido"
         style={{
           height:
-            "calc(100vh - 74px)",
+            "calc(100dvh - 166px)",
 
           overflow:
             "hidden",
@@ -3093,54 +3133,7 @@ window.onload = function () {
             }}
           >
 
-            <div>
-
-              <h2>
-                Productos
-              </h2>
-
-              <p>
-                Selecciona un producto
-                para agregarlo a la venta.
-              </p>
-
-            </div>
-
-            <input
-              ref={
-                buscadorRef
-              }
-              className="buscar-producto"
-              type="search"
-              placeholder="Buscar producto o código..."
-              value={
-                busqueda
-              }
-              onChange={(e) =>
-                setBusqueda(
-                  e.target.value
-                )
-              }
-              autoFocus
-            />
-            <div className="pos-camara-cabecera">
-              <CamaraIntegrada
-                productos={productos}
-                onProducto={agregarProducto}
-                streamRemoto={streamRemoto}
-                camaraId={camaraElegida}
-                activa={camaraActiva && !cajaEnEspera}
-                esperandoCelular={false}
-              />
-              <button
-                type="button"
-                className="pos-camara-boton"
-                onClick={() => setCamaraActiva((actual) => !actual)}
-              >
-                {camaraActiva ? "⏸ Pausar cámara" : "▶ Activar cámara"}
-              </button>
-            </div>
-
+            {/* Buscador y cámara trasladados al encabezado principal. */}
           </div>
 
           {mensajeVenta && (
@@ -3540,6 +3533,17 @@ window.onload = function () {
         </aside>
 
       </div>
+
+      <footer className="pos-ventas-barra-inferior" aria-label="Estado de caja">
+        <div className="pos-ventas-identidad">
+          <span className="pos-ventas-avatar">{String(usuario?.nombre || "U").slice(0, 1).toUpperCase()}</span>
+          <span><strong>{usuario?.nombre || "Usuario"}</strong><small>Usuario {usuario?.numeroUsuario || "—"}</small></span>
+        </div>
+        {efectivoEnCaja >= LIMITE_RETIRO && (
+          <div className="pos-ventas-retiro" role="status">⚠️ <span><strong>Retiro requerido</strong><small>${efectivoEnCaja.toFixed(2)} en caja</small></span></div>
+        )}
+        <div className="pos-ventas-tiempo"><ClimaHoraPos actualizarToken={actualizacionClima} cancelarToken={cancelacionClima} /></div>
+      </footer>
 
       {cajaEnEspera && (
         <div role="dialog" aria-modal="true" aria-label="Caja en espera"
