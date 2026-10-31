@@ -14,6 +14,7 @@ import {
 
 import { onAuthStateChanged, signOut } from "firebase/auth";
 
+import CamaraCelular from "./components/CamaraCelular";
 import Ventas from "./components/Ventas";
 import ActivarCaja from "./components/ActivarCaja";
 import LoginPin from "./components/LoginPin";
@@ -778,14 +779,19 @@ function AppPrivada() {
 }
 
 function App() {
-  const pagoPublico = new URLSearchParams(window.location.search).get("pago");
-  if (pagoPublico) return <PagoPublico id={pagoPublico} />;
-  const ticketPublico =
-    new URLSearchParams(window.location.search).get("ticket");
+  const parametros = new URLSearchParams(window.location.search);
 
-  if (ticketPublico) {
-    return <TicketPublico token={ticketPublico} />;
+  // La ruta de cámara se abre sin pasar por el inicio de sesión del cajero.
+  // Firestore sigue exigiendo autorización para acceder a la sesión.
+  if (parametros.get("camaraCelular")) {
+    return <CamaraCelular />;
   }
+
+  const pagoPublico = parametros.get("pago");
+  if (pagoPublico) return <PagoPublico id={pagoPublico} />;
+
+  const ticketPublico = parametros.get("ticket");
+  if (ticketPublico) return <TicketPublico token={ticketPublico} />;
 
   return <AppPrivada />;
 }

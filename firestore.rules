@@ -11,16 +11,76 @@ service cloud.firestore {
     match /usuarios/{uid} {
 
       allow create: if request.auth != null
-                    && request.auth.uid == uid;
+        && request.auth.uid == uid;
 
       allow read: if request.auth != null
-                  && request.auth.uid == uid;
+        && request.auth.uid == uid;
 
       allow update: if request.auth != null
-                    && request.auth.uid == uid;
+        && request.auth.uid == uid;
 
       allow delete: if false;
 
+      // ===================================================
+      // CÁMARA REMOTA: SESIONES TEMPORALES
+      // ===================================================
+
+      match /sesionesCamara/{sesionId} {
+
+        function esPropietarioCamara() {
+          return request.auth != null
+            && request.auth.uid == uid;
+        }
+
+        allow get: if esPropietarioCamara();
+
+        allow list: if false;
+
+        allow create: if esPropietarioCamara()
+          && request.resource.data.keys().hasOnly([
+            "ownerUid",
+            "estado",
+            "oferta",
+            "respuesta",
+            "creadoEn",
+            "venceEn"
+          ])
+          && request.resource.data.keys().hasAll([
+            "ownerUid",
+            "estado",
+            "oferta",
+            "respuesta",
+            "creadoEn",
+            "venceEn"
+          ])
+          && request.resource.data.ownerUid == uid
+          && request.resource.data.estado == "esperando"
+          && request.resource.data.oferta is map
+          && request.resource.data.oferta.type == "offer"
+          && request.resource.data.oferta.sdp is string
+          && request.resource.data.respuesta == null
+          && request.resource.data.creadoEn == request.time
+          && request.resource.data.venceEn is number
+          && request.resource.data.venceEn > request.time.toMillis()
+          && request.resource.data.venceEn
+             <= request.time.toMillis() + 300000;
+
+        allow update: if esPropietarioCamara()
+          && resource.data.ownerUid == uid
+          && resource.data.estado == "esperando"
+          && resource.data.venceEn > request.time.toMillis()
+          && request.resource.data.diff(resource.data)
+             .affectedKeys().hasOnly([
+               "respuesta",
+               "estado"
+             ])
+          && request.resource.data.estado == "conectando"
+          && request.resource.data.respuesta is map
+          && request.resource.data.respuesta.type == "answer"
+          && request.resource.data.respuesta.sdp is string;
+
+        allow delete: if esPropietarioCamara();
+      }
 
       // ===================================================
       // PRODUCTOS
@@ -29,26 +89,25 @@ service cloud.firestore {
       match /productos/{productoId} {
 
         allow read: if request.auth != null
-                    && request.auth.uid == uid;
+          && request.auth.uid == uid;
 
         allow create: if request.auth != null
-                      && request.auth.uid == uid
-                      && request.resource.data.propietarioUid
-                         == request.auth.uid;
+          && request.auth.uid == uid
+          && request.resource.data.propietarioUid
+             == request.auth.uid;
 
         allow update: if request.auth != null
-                      && request.auth.uid == uid
-                      && resource.data.propietarioUid
-                         == request.auth.uid
-                      && request.resource.data.propietarioUid
-                         == request.auth.uid;
+          && request.auth.uid == uid
+          && resource.data.propietarioUid
+             == request.auth.uid
+          && request.resource.data.propietarioUid
+             == request.auth.uid;
 
         allow delete: if request.auth != null
-                      && request.auth.uid == uid
-                      && resource.data.propietarioUid
-                         == request.auth.uid;
+          && request.auth.uid == uid
+          && resource.data.propietarioUid
+             == request.auth.uid;
       }
-
 
       // ===================================================
       // INVENTARIO
@@ -57,26 +116,25 @@ service cloud.firestore {
       match /inventario/{productoId} {
 
         allow read: if request.auth != null
-                    && request.auth.uid == uid;
+          && request.auth.uid == uid;
 
         allow create: if request.auth != null
-                      && request.auth.uid == uid
-                      && request.resource.data.propietarioUid
-                         == request.auth.uid;
+          && request.auth.uid == uid
+          && request.resource.data.propietarioUid
+             == request.auth.uid;
 
         allow update: if request.auth != null
-                      && request.auth.uid == uid
-                      && resource.data.propietarioUid
-                         == request.auth.uid
-                      && request.resource.data.propietarioUid
-                         == request.auth.uid;
+          && request.auth.uid == uid
+          && resource.data.propietarioUid
+             == request.auth.uid
+          && request.resource.data.propietarioUid
+             == request.auth.uid;
 
         allow delete: if request.auth != null
-                      && request.auth.uid == uid
-                      && resource.data.propietarioUid
-                         == request.auth.uid;
+          && request.auth.uid == uid
+          && resource.data.propietarioUid
+             == request.auth.uid;
       }
-
 
       // ===================================================
       // PROVEEDORES
@@ -85,26 +143,25 @@ service cloud.firestore {
       match /proveedores/{proveedorId} {
 
         allow read: if request.auth != null
-                    && request.auth.uid == uid;
+          && request.auth.uid == uid;
 
         allow create: if request.auth != null
-                      && request.auth.uid == uid
-                      && request.resource.data.propietarioUid
-                         == request.auth.uid;
+          && request.auth.uid == uid
+          && request.resource.data.propietarioUid
+             == request.auth.uid;
 
         allow update: if request.auth != null
-                      && request.auth.uid == uid
-                      && resource.data.propietarioUid
-                         == request.auth.uid
-                      && request.resource.data.propietarioUid
-                         == request.auth.uid;
+          && request.auth.uid == uid
+          && resource.data.propietarioUid
+             == request.auth.uid
+          && request.resource.data.propietarioUid
+             == request.auth.uid;
 
         allow delete: if request.auth != null
-                      && request.auth.uid == uid
-                      && resource.data.propietarioUid
-                         == request.auth.uid;
+          && request.auth.uid == uid
+          && resource.data.propietarioUid
+             == request.auth.uid;
       }
-
 
       // ===================================================
       // REGISTROS DE MERCANCÍA
@@ -113,26 +170,25 @@ service cloud.firestore {
       match /registrosMercancia/{registroId} {
 
         allow read: if request.auth != null
-                    && request.auth.uid == uid;
+          && request.auth.uid == uid;
 
         allow create: if request.auth != null
-                      && request.auth.uid == uid
-                      && request.resource.data.propietarioUid
-                         == request.auth.uid;
+          && request.auth.uid == uid
+          && request.resource.data.propietarioUid
+             == request.auth.uid;
 
         allow update: if request.auth != null
-                      && request.auth.uid == uid
-                      && resource.data.propietarioUid
-                         == request.auth.uid
-                      && request.resource.data.propietarioUid
-                         == request.auth.uid;
+          && request.auth.uid == uid
+          && resource.data.propietarioUid
+             == request.auth.uid
+          && request.resource.data.propietarioUid
+             == request.auth.uid;
 
         allow delete: if request.auth != null
-                      && request.auth.uid == uid
-                      && resource.data.propietarioUid
-                         == request.auth.uid;
+          && request.auth.uid == uid
+          && resource.data.propietarioUid
+             == request.auth.uid;
       }
-
 
       // ===================================================
       // USUARIOS / CAJEROS
@@ -141,26 +197,25 @@ service cloud.firestore {
       match /usuariosSistema/{usuarioId} {
 
         allow read: if request.auth != null
-                    && request.auth.uid == uid;
+          && request.auth.uid == uid;
 
         allow create: if request.auth != null
-                      && request.auth.uid == uid
-                      && request.resource.data.propietarioUid
-                         == request.auth.uid;
+          && request.auth.uid == uid
+          && request.resource.data.propietarioUid
+             == request.auth.uid;
 
         allow update: if request.auth != null
-                      && request.auth.uid == uid
-                      && resource.data.propietarioUid
-                         == request.auth.uid
-                      && request.resource.data.propietarioUid
-                         == request.auth.uid;
+          && request.auth.uid == uid
+          && resource.data.propietarioUid
+             == request.auth.uid
+          && request.resource.data.propietarioUid
+             == request.auth.uid;
 
         allow delete: if request.auth != null
-                      && request.auth.uid == uid
-                      && resource.data.propietarioUid
-                         == request.auth.uid;
+          && request.auth.uid == uid
+          && resource.data.propietarioUid
+             == request.auth.uid;
       }
-
 
       // ===================================================
       // VENTAS
@@ -169,18 +224,17 @@ service cloud.firestore {
       match /ventas/{ventaId} {
 
         allow read: if request.auth != null
-                    && request.auth.uid == uid;
+          && request.auth.uid == uid;
 
         allow create: if request.auth != null
-                      && request.auth.uid == uid
-                      && request.resource.data.propietarioUid
-                         == request.auth.uid;
+          && request.auth.uid == uid
+          && request.resource.data.propietarioUid
+             == request.auth.uid;
 
         allow update: if false;
 
         allow delete: if false;
       }
-
 
       // ===================================================
       // CORTES DE CAJA
@@ -189,36 +243,46 @@ service cloud.firestore {
       match /cortesCaja/{corteId} {
 
         allow read: if request.auth != null
-                    && request.auth.uid == uid;
+          && request.auth.uid == uid;
 
         allow create: if request.auth != null
-                      && request.auth.uid == uid
-                      && request.resource.data.propietarioUid
-                         == request.auth.uid;
+          && request.auth.uid == uid
+          && request.resource.data.propietarioUid
+             == request.auth.uid;
 
         allow update: if request.auth != null
-                      && request.auth.uid == uid
-                      && resource.data.propietarioUid
-                         == request.auth.uid
-                      && request.resource.data.propietarioUid
-                         == request.auth.uid;
+          && request.auth.uid == uid
+          && resource.data.propietarioUid
+             == request.auth.uid
+          && request.resource.data.propietarioUid
+             == request.auth.uid;
 
         allow delete: if request.auth != null
-                      && request.auth.uid == uid
-                      && resource.data.propietarioUid
-                         == request.auth.uid;
+          && request.auth.uid == uid
+          && resource.data.propietarioUid
+             == request.auth.uid;
       }
 
+      // ===================================================
+      // CIERRES DE SESIÓN DE CAJA
+      // ===================================================
 
-      // CIERRES DE SESIÓN: el cajero registra un aviso, no liquida efectivo.
       match /cierresSesionCaja/{cierreId} {
-        allow read: if request.auth != null && request.auth.uid == uid;
-        allow create: if request.auth != null && request.auth.uid == uid
+
+        allow read: if request.auth != null
+          && request.auth.uid == uid;
+
+        allow create: if request.auth != null
+          && request.auth.uid == uid
           && request.resource.data.propietarioUid == uid
           && request.resource.data.origen == "web"
-          && request.resource.data.estado in ["pendiente_revision", "sin_efectivo_registrado"]
+          && request.resource.data.estado in [
+            "pendiente_revision",
+            "sin_efectivo_registrado"
+          ]
           && request.resource.data.efectivoRegistrado is number
           && request.resource.data.efectivoRegistrado >= 0;
+
         allow update, delete: if false;
       }
 
@@ -229,26 +293,25 @@ service cloud.firestore {
       match /retirosCaja/{retiroId} {
 
         allow read: if request.auth != null
-                    && request.auth.uid == uid;
+          && request.auth.uid == uid;
 
         allow create: if request.auth != null
-                      && request.auth.uid == uid
-                      && request.resource.data.propietarioUid
-                         == request.auth.uid;
+          && request.auth.uid == uid
+          && request.resource.data.propietarioUid
+             == request.auth.uid;
 
         allow update: if request.auth != null
-                      && request.auth.uid == uid
-                      && resource.data.propietarioUid
-                         == request.auth.uid
-                      && request.resource.data.propietarioUid
-                         == request.auth.uid;
+          && request.auth.uid == uid
+          && resource.data.propietarioUid
+             == request.auth.uid
+          && request.resource.data.propietarioUid
+             == request.auth.uid;
 
         allow delete: if request.auth != null
-                      && request.auth.uid == uid
-                      && resource.data.propietarioUid
-                         == request.auth.uid;
+          && request.auth.uid == uid
+          && resource.data.propietarioUid
+             == request.auth.uid;
       }
-
 
       // ===================================================
       // CONFIGURACIÓN / AJUSTES
@@ -257,27 +320,26 @@ service cloud.firestore {
       match /configuracion/{configId} {
 
         allow read: if request.auth != null
-                    && request.auth.uid == uid;
+          && request.auth.uid == uid;
 
         allow create: if request.auth != null
-                      && request.auth.uid == uid
-                      && request.resource.data.propietarioUid
-                         == request.auth.uid;
+          && request.auth.uid == uid
+          && request.resource.data.propietarioUid
+             == request.auth.uid;
 
         allow update: if request.auth != null
-                      && request.auth.uid == uid
-                      && resource.data.propietarioUid
-                         == request.auth.uid
-                      && request.resource.data.propietarioUid
-                         == request.auth.uid;
+          && request.auth.uid == uid
+          && resource.data.propietarioUid
+             == request.auth.uid
+          && request.resource.data.propietarioUid
+             == request.auth.uid;
 
         allow delete: if request.auth != null
-                      && request.auth.uid == uid
-                      && resource.data.propietarioUid
-                         == request.auth.uid;
+          && request.auth.uid == uid
+          && resource.data.propietarioUid
+             == request.auth.uid;
       }
     }
-
 
     // =====================================================
     // PIN BÁSICO DE CAJEROS - FIREBASE SPARK
@@ -287,7 +349,7 @@ service cloud.firestore {
 
       function esPropietario() {
         return request.auth != null
-               && request.auth.uid == ownerUid;
+          && request.auth.uid == ownerUid;
       }
 
       function cajeroExisteYActivo() {
@@ -302,40 +364,39 @@ service cloud.firestore {
       allow read: if esPropietario();
 
       allow create: if esPropietario()
-                    && cajeroExisteYActivo()
-                    && request.resource.data.keys().hasOnly([
-                      "sal",
-                      "hash",
-                      "creadoEn",
-                      "intentosFallidos",
-                      "bloqueado",
-                      "historial"
-                    ])
-                    && request.resource.data.sal is string
-                    && request.resource.data.hash is string
-                    && request.resource.data.creadoEn is number
-                    && request.resource.data.intentosFallidos == 0
-                    && request.resource.data.bloqueado == false
-                    && request.resource.data.historial is list
-                    && request.resource.data.historial.size() == 1
-                    && request.resource.data.historial[0]
-                       == request.resource.data.hash;
+        && cajeroExisteYActivo()
+        && request.resource.data.keys().hasOnly([
+          "sal",
+          "hash",
+          "creadoEn",
+          "intentosFallidos",
+          "bloqueado",
+          "historial"
+        ])
+        && request.resource.data.sal is string
+        && request.resource.data.hash is string
+        && request.resource.data.creadoEn is number
+        && request.resource.data.intentosFallidos == 0
+        && request.resource.data.bloqueado == false
+        && request.resource.data.historial is list
+        && request.resource.data.historial.size() == 1
+        && request.resource.data.historial[0]
+           == request.resource.data.hash;
 
       allow update: if esPropietario()
-                    && cajeroExisteYActivo()
-                    && request.resource.data.diff(resource.data)
-                       .affectedKeys().hasOnly([
-                         "intentosFallidos",
-                         "bloqueado"
-                       ])
-                    && request.resource.data.intentosFallidos is int
-                    && request.resource.data.intentosFallidos >= 0
-                    && request.resource.data.intentosFallidos <= 4
-                    && request.resource.data.bloqueado is bool;
+        && cajeroExisteYActivo()
+        && request.resource.data.diff(resource.data)
+           .affectedKeys().hasOnly([
+             "intentosFallidos",
+             "bloqueado"
+           ])
+        && request.resource.data.intentosFallidos is int
+        && request.resource.data.intentosFallidos >= 0
+        && request.resource.data.intentosFallidos <= 4
+        && request.resource.data.bloqueado is bool;
 
       allow delete: if false;
     }
-
 
     // =====================================================
     // PIN DE SEGURIDAD RESERVADO PARA SERVIDOR
@@ -344,7 +405,6 @@ service cloud.firestore {
     match /posPinSeguridad/{ownerUid}/cajeros/{usuarioId} {
       allow read, write: if false;
     }
-
 
     // =====================================================
     // POS INIT PAY - SPEI + STRIPE
@@ -357,27 +417,23 @@ service cloud.firestore {
           && request.auth.uid == resource.data.ownerUid;
       }
 
-      // La confirmación de Stripe debe haber sido
-      // registrada previamente por Cloudflare Worker.
       function stripeVerificado() {
         return resource.data.keys().hasAll([
-            "stripeConfirmacion"
-          ])
-          && resource.data.stripeConfirmacion is map
-          && resource.data.stripeConfirmacion.proveedor == "stripe"
-          && resource.data.stripeConfirmacion.estado == "paid"
-          && resource.data.stripeConfirmacion.moneda == "mxn"
-          && resource.data.stripeConfirmacion.importeCentavos
-             == int(resource.data.total * 100)
-          && resource.data.stripeConfirmacion.sessionId is string
-          && resource.data.stripeConfirmacion.sessionId.size() > 0;
+          "stripeConfirmacion"
+        ])
+        && resource.data.stripeConfirmacion is map
+        && resource.data.stripeConfirmacion.proveedor == "stripe"
+        && resource.data.stripeConfirmacion.estado == "paid"
+        && resource.data.stripeConfirmacion.moneda == "mxn"
+        && resource.data.stripeConfirmacion.importeCentavos
+           == int(resource.data.total * 100)
+        && resource.data.stripeConfirmacion.sessionId is string
+        && resource.data.stripeConfirmacion.sessionId.size() > 0;
       }
 
-      // Un cliente puede consultar un pago por su ID.
-      // No puede listar todos los pagos.
+      // Consultar un pago por ID, sin listar todos.
       allow get: if true;
       allow list: if false;
-
 
       // ===================================================
       // CREAR SOLICITUD DE PAGO
@@ -408,38 +464,58 @@ service cloud.firestore {
         && request.resource.data.estado == "pendiente"
         && request.resource.data.total is number
         && request.resource.data.total > 0
-        // Pago individual de un cobro combinado: ambos campos
-        // deben estar presentes o ambos ausentes.
         && (
           (
-            !request.resource.data.keys().hasAny(["cobroMixtoId", "totalVenta"])
-          ) || (
-            request.resource.data.keys().hasAll(["cobroMixtoId", "totalVenta"])
+            !request.resource.data.keys().hasAny([
+              "cobroMixtoId",
+              "totalVenta"
+            ])
+          )
+          ||
+          (
+            request.resource.data.keys().hasAll([
+              "cobroMixtoId",
+              "totalVenta"
+            ])
             && request.resource.data.cobroMixtoId is string
-            && request.resource.data.cobroMixtoId.matches('^[A-Za-z0-9_-]{15,80}$')
+            && request.resource.data.cobroMixtoId.matches(
+              '^[A-Za-z0-9_-]{15,80}$'
+            )
             && request.resource.data.totalVenta is number
-            && request.resource.data.totalVenta >= request.resource.data.total
+            && request.resource.data.totalVenta
+               >= request.resource.data.total
             && request.resource.data.total >= 10
           )
         )
         && (
-          // Tarjeta Stripe: no necesita datos SPEI.
-          (request.resource.data.keys().hasAll(["metodo"])
+          (
+            request.resource.data.keys().hasAll(["metodo"])
             && request.resource.data.metodo == "tarjeta"
-            && !request.resource.data.keys().hasAny(["banco", "titular", "clabe"])
-            && request.resource.data.total >= 10)
+            && !request.resource.data.keys().hasAny([
+              "banco",
+              "titular",
+              "clabe"
+            ])
+            && request.resource.data.total >= 10
+          )
           ||
-          // Compatibilidad con documentos SPEI existentes.
-          (!request.resource.data.keys().hasAny(["metodo"])
-            && request.resource.data.keys().hasAll(["banco", "titular", "clabe"])
+          (
+            !request.resource.data.keys().hasAny(["metodo"])
+            && request.resource.data.keys().hasAll([
+              "banco",
+              "titular",
+              "clabe"
+            ])
             && request.resource.data.banco is string
             && request.resource.data.titular is string
             && request.resource.data.clabe is string
-            && request.resource.data.clabe.matches('^[0-9]{18}$'))
+            && request.resource.data.clabe.matches(
+              '^[0-9]{18}$'
+            )
+          )
         )
         && request.resource.data.productos is list
         && request.resource.data.creadoEn == request.time;
-
 
       // ===================================================
       // CONFIRMAR PAGO SPEI O STRIPE
@@ -447,19 +523,16 @@ service cloud.firestore {
 
       allow update: if propietarioAutenticado()
 
-        // El pago solo puede confirmarse una vez.
         && resource.data.estado == "pendiente"
         && request.resource.data.estado == "confirmado"
 
-        // No se pueden alterar los datos originales
-        // ni la confirmación que guardó Cloudflare.
         && request.resource.data.diff(resource.data)
-          .affectedKeys().hasOnly([
-            "estado",
-            "ventaId",
-            "fechaConfirmacion",
-            "ticket"
-          ])
+           .affectedKeys().hasOnly([
+             "estado",
+             "ventaId",
+             "fechaConfirmacion",
+             "ticket"
+           ])
 
         && request.resource.data.keys().hasAll([
           "ventaId",
@@ -480,36 +553,50 @@ service cloud.firestore {
         && (
           (
             !resource.data.keys().hasAny(["cobroMixtoId"])
-            && request.resource.data.ticket.total == resource.data.total
-          ) || (
-            resource.data.keys().hasAll(["cobroMixtoId", "totalVenta"])
-            && request.resource.data.ticket.metodoPago == "mixto"
-            && request.resource.data.ticket.total == resource.data.totalVenta
-            && request.resource.data.ticket.cobroMixtoId == resource.data.cobroMixtoId
+            && request.resource.data.ticket.total
+               == resource.data.total
+          )
+          ||
+          (
+            resource.data.keys().hasAll([
+              "cobroMixtoId",
+              "totalVenta"
+            ])
+            && request.resource.data.ticket.metodoPago
+               == "mixto"
+            && request.resource.data.ticket.total
+               == resource.data.totalVenta
+            && request.resource.data.ticket.cobroMixtoId
+               == resource.data.cobroMixtoId
           )
         )
 
         && request.resource.data.ticket.productos is list
 
-        // Solo se permite:
-        //
-        // 1. SPEI sin confirmación previa de Stripe.
-        //
-        // 2. Tarjeta con confirmación previa de Stripe.
-        //
         && (
           (
             request.resource.data.ticket.metodoPago
-              == "transferencia"
-            && !resource.data.keys().hasAny(["stripeConfirmacion", "metodo"])
+               == "transferencia"
+            && !resource.data.keys().hasAny([
+              "stripeConfirmacion",
+              "metodo"
+            ])
           )
-
           ||
-
           (
-            (request.resource.data.ticket.metodoPago == "tarjeta"
-              || (request.resource.data.ticket.metodoPago == "mixto"
-                && resource.data.keys().hasAll(["cobroMixtoId", "totalVenta"])))
+            (
+              request.resource.data.ticket.metodoPago
+                 == "tarjeta"
+              ||
+              (
+                request.resource.data.ticket.metodoPago
+                   == "mixto"
+                && resource.data.keys().hasAll([
+                  "cobroMixtoId",
+                  "totalVenta"
+                ])
+              )
+            )
             && resource.data.keys().hasAll(["metodo"])
             && resource.data.metodo == "tarjeta"
             && stripeVerificado()
@@ -518,7 +605,6 @@ service cloud.firestore {
 
       allow delete: if false;
     }
-
 
     // =====================================================
     // TODO LO DEMÁS BLOQUEADO

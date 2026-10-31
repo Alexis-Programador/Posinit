@@ -28,7 +28,9 @@ import CorteCaja from "./CorteCaja";
 import HistorialVentas from "./HistorialVentas";
 import { QRCodeSVG } from "qrcode.react";
 import { verificarPinCajero } from "../firebase/posPinBasico";
-import EscanerProductos from "./EscanerProductos";
+import CamaraRemota from "./CamaraRemota";
+import CamaraIntegrada from "./CamaraIntegrada";
+
 
 // FUNCIONES NATIVAS: clima, reloj y cámara. Sin dependencias adicionales.
 function ClimaHoraPos({ actualizarToken = 0 }) {
@@ -280,7 +282,10 @@ function Ventas({
 
   const LIMITE_RETIRO = 3000;
 
-  const [mostrarEscanerCamara, setMostrarEscanerCamara] = useState(false);
+  const [camaraActiva, setCamaraActiva] = useState(true);
+  const [modoCamara, setModoCamara] = useState("usb");
+  const [streamRemoto, setStreamRemoto] = useState(null);
+  const [vinculandoCelular, setVinculandoCelular] = useState(false);
   const [configuracionFunciones, setConfiguracionFunciones] = useState(null);
   const [actualizacionClima, setActualizacionClima] = useState(0);
   const [camarasConfiguracion, setCamarasConfiguracion] = useState([]);
@@ -3089,10 +3094,23 @@ window.onload = function () {
               }
               autoFocus
             />
-            <button type="button" onClick={() => setMostrarEscanerCamara(true)}
-              style={{ marginTop: 8, padding: "9px 13px", background: "#183a5b", color: "white", border: 0, borderRadius: 9, cursor: "pointer", fontWeight: 700 }}>
-              📷 Escanear código de barras
-            </button>
+            <div className="pos-camara-cabecera">
+              <CamaraIntegrada
+                productos={productos}
+                onProducto={agregarProducto}
+                streamRemoto={modoCamara === "celular" ? streamRemoto : null}
+                camaraId={camaraElegida}
+                activa={camaraActiva && !cajaEnEspera && modoCamara === "usb" || camaraActiva && !cajaEnEspera && modoCamara === "celular" && !!streamRemoto}
+                esperandoCelular={modoCamara === "celular" && !streamRemoto}
+              />
+              <button
+                type="button"
+                className="pos-camara-boton"
+                onClick={() => setCamaraActiva((actual) => !actual)}
+              >
+                {camaraActiva ? "⏸ Pausar cámara" : "▶ Activar cámara"}
+              </button>
+            </div>
 
           </div>
 
@@ -3708,10 +3726,7 @@ window.onload = function () {
                 <strong>F8 · 📍 Ubicación y clima</strong>
                 <span>Validar ubicación y actualizar el clima.</span>
               </button>
-              <div style={{ ...estiloOpcionMenu, background: "#f1f5f9", color: "#64748b", cursor: "not-allowed" }} aria-disabled="true">
-                <strong>📱 Cámara del celular · Próximamente</strong>
-                <span>Conexión con teléfono pendiente de desarrollo.</span>
-              </div>
+              <button type="button" style={estiloOpcionMenu} onClick={()=>abrirConfiguracion("camara")}><strong>📱 Conectar celular por internet</strong><span>Abre F6 y genera un QR para transmitir video.</span></button>
 
               <button type="button" style={estiloOpcionMenu}
                 onClick={() => {
@@ -4737,7 +4752,9 @@ window.onload = function () {
                   {camarasConfiguracion.map((camara, i) => <option key={camara.deviceId} value={camara.deviceId}>{camara.label || `Cámara ${i + 1}`}</option>)}
                 </select>
                 <button type="button" disabled={!camaraElegida} onClick={() => { localStorage.setItem("pos-init-camara-preferida", camaraElegida); setMensajeConfiguracion("Cámara guardada. El escáner la utilizará al abrirse."); }} style={{ marginTop: 12, padding: 10 }}>Guardar cámara</button>
-                <p style={{ padding: 12, background: "#f1f5f9", color: "#64748b", borderRadius: 10 }}>📱 Cámara del celular — Próximamente</p>
+                <p><button type="button" onClick={()=>{localStorage.setItem("pos-init-camara-preferida",camaraElegida);setModoCamara("usb");setVinculandoCelular(false);setCamaraActiva(true);setConfiguracionFunciones(null);}}>Usar cámara USB</button></p>
+                <button type="button" onClick={()=>{setModoCamara("celular");setStreamRemoto(null);setVinculandoCelular(true);setCamaraActiva(true);}}>📱 Conectar celular por internet</button>
+                {vinculandoCelular && <CamaraRemota ownerUid={ownerUid} usuarioId={usuario?.id} onStream={setStreamRemoto} onCerrar={()=>{setVinculandoCelular(false);setStreamRemoto(null);}} />}
               </>
             )}
             {configuracionFunciones === "notificaciones" && (
@@ -4760,12 +4777,6 @@ window.onload = function () {
         </div>
       )}
 
-      {mostrarEscanerCamara && (
-        <EscanerProductos productos={productos} onProducto={(producto) => {
-          agregarProducto(producto);
-          setMostrarEscanerCamara(false);
-        }} onCerrar={() => setMostrarEscanerCamara(false)} />
-      )}
     </main>
   );
 }
