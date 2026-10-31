@@ -4991,70 +4991,79 @@ body:has(.pagina-pin-seguro),
   .ventas-pagina .carrito { padding: 12px !important; }
 }
 
-/* ==========================================
-   POS INIT - TARJETAS COMPACTAS
-   ANCHO REDUCIDO
-   ========================================== */
 
+/* =============================================================
+   POS INIT - CATALOGO FINAL: 5 PRODUCTOS POR FILA EN ESCRITORIO
+   Reglas finales para prevalecer sobre ajustes anteriores.
+   ============================================================= */
 .ventas-pagina .catalogo .productos-grid {
   display: grid !important;
-
-  grid-template-columns:
-    repeat(auto-fill, 180px) !important;
-
-  grid-auto-rows: 170px !important;
-
+  grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+  grid-auto-rows: 210px !important;
+  gap: 14px !important;
   justify-content: start !important;
-
   align-content: start !important;
-
-  gap: 12px !important;
 }
-
-.ventas-pagina .catalogo .producto-card {
-  width: 180px !important;
-
-  max-width: 180px !important;
-
-  height: 170px !important;
-
+.ventas-pagina .catalogo .producto-card,
+.ventas-pagina .producto-card {
+  width: 100% !important;
+  max-width: none !important;
   min-width: 0 !important;
-
+  height: 210px !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+  border-radius: 14px !important;
+}
+.ventas-pagina .catalogo .producto-imagen,
+.ventas-pagina .producto-imagen {
+  height: 140px !important;
+  min-height: 140px !important;
+  flex: 0 0 140px !important;
+  padding: 8px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
   overflow: hidden !important;
 }
-
-.ventas-pagina .catalogo .producto-imagen {
-  height: 108px !important;
-
-  min-height: 108px !important;
-
-  padding: 5px !important;
-}
-
-.ventas-pagina .catalogo .producto-imagen img {
+.ventas-pagina .catalogo .producto-imagen img,
+.ventas-pagina .producto-imagen img {
   width: 100% !important;
-
   height: 100% !important;
-
+  max-width: 100% !important;
+  max-height: 100% !important;
   object-fit: contain !important;
+  object-position: center !important;
+  padding: 0 !important;
 }
-
-.ventas-pagina .catalogo .producto-info {
-  padding: 5px 7px !important;
+.ventas-pagina .catalogo .producto-info,
+.ventas-pagina .producto-info {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  padding: 7px 9px !important;
 }
-
-/* Celulares */
+@media (max-width: 1200px) {
+  .ventas-pagina .catalogo .productos-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  }
+}
+@media (max-width: 900px) {
+  .ventas-pagina .catalogo .productos-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  }
+}
 @media (max-width: 600px) {
   .ventas-pagina .catalogo .productos-grid {
-    grid-template-columns:
-      repeat(2, minmax(0, 1fr)) !important;
-
-    gap: 8px !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    grid-auto-rows: 190px !important;
+    gap: 10px !important;
   }
-
-  .ventas-pagina .catalogo .producto-card {
-    width: 100% !important;
-
-    max-width: none !important;
+  .ventas-pagina .catalogo .producto-card,
+  .ventas-pagina .producto-card { height: 190px !important; }
+  .ventas-pagina .catalogo .producto-imagen,
+  .ventas-pagina .producto-imagen {
+    height: 120px !important;
+    min-height: 120px !important;
+    flex-basis: 120px !important;
   }
 }
