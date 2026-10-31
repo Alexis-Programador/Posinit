@@ -3285,7 +3285,7 @@ window.onload = function () {
 
                           {sinStock
                             ? "Agotado"
-                            : `Stock: ${stock}`}
+                            : `Stock: ${stock > 99 ? "99+" : stock}`}
 
                         </span>
 
