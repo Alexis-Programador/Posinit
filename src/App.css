@@ -5320,53 +5320,95 @@ body:has(.pagina-pin-seguro),
 /* En movil, conservar una sola columna y el flujo vertical existente. */
 
 /* ==========================================
-   POS INIT - PRODUCTOS MAS GRANDES
+   POS INIT - 6 PRODUCTOS POR FILA
    ========================================== */
 
-@media (min-width: 901px) {
+@media (min-width: 1200px) {
+
+  /* Panel de ventas más estrecho */
+  .ventas-pagina {
+    --ancho-carrito: 340px;
+  }
+
   .ventas-pagina .catalogo .productos-grid {
     display: grid !important;
-    grid-template-columns: repeat(
-      auto-fill,
-      minmax(240px, 260px)
-    ) !important;
-    gap: 16px !important;
-    justify-content: start !important;
+
+    /* Exactamente 6 columnas */
+    grid-template-columns: repeat(6, minmax(0, 1fr)) !important;
+
+    /* Separación como en la imagen 2 */
+    column-gap: 16px !important;
+    row-gap: 16px !important;
+
+    width: 100% !important;
+    max-width: 100% !important;
+
     align-content: start !important;
+    justify-content: stretch !important;
   }
 
+  /* Tarjetas que se adaptan al ancho disponible */
   .ventas-pagina .catalogo .producto-card {
     width: 100% !important;
-    max-width: 260px !important;
+    max-width: none !important;
     min-width: 0 !important;
-    height: 350px !important;
-    overflow: hidden !important;
+
+    /* Evita que se encimen entre filas */
+    height: 280px !important;
+    min-height: 280px !important;
+
     display: flex !important;
     flex-direction: column !important;
+    overflow: hidden !important;
   }
 
+  /* Espacio para la imagen */
   .ventas-pagina .catalogo .producto-imagen {
-    height: 270px !important;
-    min-height: 270px !important;
+    height: 205px !important;
+    min-height: 205px !important;
+    max-height: 205px !important;
+
     padding: 8px !important;
+
     display: flex !important;
     justify-content: center !important;
     align-items: center !important;
+
     overflow: hidden !important;
   }
 
+  /* Imagen completa y centrada */
   .ventas-pagina .catalogo .producto-imagen img {
     width: 100% !important;
     height: 100% !important;
+
     max-width: 100% !important;
     max-height: 100% !important;
+
     object-fit: contain !important;
     object-position: center !important;
   }
 
+  /* Información del producto */
   .ventas-pagina .catalogo .producto-info {
     flex: 1 !important;
     min-height: 0 !important;
     padding: 8px 10px !important;
+  }
+}
+
+/* Pantallas medianas */
+@media (min-width: 901px) and (max-width: 1199px) {
+  .ventas-pagina .catalogo .productos-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+    gap: 16px !important;
+  }
+}
+
+/* Celulares */
+@media (max-width: 900px) {
+  .ventas-pagina .catalogo .productos-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 12px !important;
   }
 }
