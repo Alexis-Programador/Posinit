@@ -4990,3 +4990,71 @@ body:has(.pagina-pin-seguro),
   .ventas-pagina .producto-card { height: 165px !important; }
   .ventas-pagina .carrito { padding: 12px !important; }
 }
+
+/* ==========================================
+   POS INIT - TARJETAS COMPACTAS
+   ANCHO REDUCIDO
+   ========================================== */
+
+.ventas-pagina .catalogo .productos-grid {
+  display: grid !important;
+
+  grid-template-columns:
+    repeat(auto-fill, 180px) !important;
+
+  grid-auto-rows: 170px !important;
+
+  justify-content: start !important;
+
+  align-content: start !important;
+
+  gap: 12px !important;
+}
+
+.ventas-pagina .catalogo .producto-card {
+  width: 180px !important;
+
+  max-width: 180px !important;
+
+  height: 170px !important;
+
+  min-width: 0 !important;
+
+  overflow: hidden !important;
+}
+
+.ventas-pagina .catalogo .producto-imagen {
+  height: 108px !important;
+
+  min-height: 108px !important;
+
+  padding: 5px !important;
+}
+
+.ventas-pagina .catalogo .producto-imagen img {
+  width: 100% !important;
+
+  height: 100% !important;
+
+  object-fit: contain !important;
+}
+
+.ventas-pagina .catalogo .producto-info {
+  padding: 5px 7px !important;
+}
+
+/* Celulares */
+@media (max-width: 600px) {
+  .ventas-pagina .catalogo .productos-grid {
+    grid-template-columns:
+      repeat(2, minmax(0, 1fr)) !important;
+
+    gap: 8px !important;
+  }
+
+  .ventas-pagina .catalogo .producto-card {
+    width: 100% !important;
+
+    max-width: none !important;
+  }
+}
