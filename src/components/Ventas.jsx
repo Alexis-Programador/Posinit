@@ -3098,10 +3098,10 @@ window.onload = function () {
               <CamaraIntegrada
                 productos={productos}
                 onProducto={agregarProducto}
-                streamRemoto={modoCamara === "celular" ? streamRemoto : null}
+                streamRemoto={streamRemoto}
                 camaraId={camaraElegida}
-                activa={camaraActiva && !cajaEnEspera && modoCamara === "usb" || camaraActiva && !cajaEnEspera && modoCamara === "celular" && !!streamRemoto}
-                esperandoCelular={modoCamara === "celular" && !streamRemoto}
+                activa={camaraActiva && !cajaEnEspera}
+                esperandoCelular={false}
               />
               <button
                 type="button"
@@ -4740,7 +4740,12 @@ window.onload = function () {
         </div>
       )}
 
-      {configuracionFunciones && (
+              {vinculandoCelular && (
+          <div style={configuracionFunciones === "camara" ? {position:"fixed",zIndex:10030,top:"50%",left:"50%",transform:"translate(-50%, -5%)",width:"min(410px,90vw)",maxHeight:"42vh",overflowY:"auto",background:"white",borderRadius:12,boxShadow:"0 5px 25px #0005"} : {display:"none"}}>
+            <CamaraRemota ownerUid={ownerUid} usuarioId={usuario?.id} onStream={(stream)=>{setStreamRemoto(stream);if(stream){setModoCamara("celular");setCamaraActiva(true);}else{setModoCamara("usb");}}} onCerrar={()=>{setVinculandoCelular(false);setStreamRemoto(null);setModoCamara("usb");}} />
+          </div>
+        )}
+{configuracionFunciones && (
         <div role="dialog" aria-modal="true" aria-label="Configuración de funciones" style={{ position: "fixed", inset: 0, zIndex: 10020, background: "#0b182bd9", display: "grid", placeItems: "center", padding: 16 }}>
           <section style={{ width: "min(440px, 100%)", background: "white", color: "#17243a", borderRadius: 16, padding: 22, boxShadow: "0 20px 60px #0004" }}>
             <h2 style={{ marginTop: 0 }}>{configuracionFunciones === "camara" ? "📷 Configurar cámara" : configuracionFunciones === "notificaciones" ? "🔔 Notificaciones de Windows" : "📍 Ubicación y clima"}</h2>
@@ -4752,9 +4757,9 @@ window.onload = function () {
                   {camarasConfiguracion.map((camara, i) => <option key={camara.deviceId} value={camara.deviceId}>{camara.label || `Cámara ${i + 1}`}</option>)}
                 </select>
                 <button type="button" disabled={!camaraElegida} onClick={() => { localStorage.setItem("pos-init-camara-preferida", camaraElegida); setMensajeConfiguracion("Cámara guardada. El escáner la utilizará al abrirse."); }} style={{ marginTop: 12, padding: 10 }}>Guardar cámara</button>
-                <p><button type="button" onClick={()=>{localStorage.setItem("pos-init-camara-preferida",camaraElegida);setModoCamara("usb");setVinculandoCelular(false);setCamaraActiva(true);setConfiguracionFunciones(null);}}>Usar cámara USB</button></p>
-                <button type="button" onClick={()=>{setModoCamara("celular");setStreamRemoto(null);setVinculandoCelular(true);setCamaraActiva(true);}}>📱 Conectar celular por internet</button>
-                {vinculandoCelular && <CamaraRemota ownerUid={ownerUid} usuarioId={usuario?.id} onStream={setStreamRemoto} onCerrar={()=>{setVinculandoCelular(false);setStreamRemoto(null);}} />}
+                <p><button type="button" onClick={()=>{localStorage.setItem("pos-init-camara-preferida",camaraElegida);setModoCamara("usb");setVinculandoCelular(false);setStreamRemoto(null);setCamaraActiva(true);setConfiguracionFunciones(null);}}>Usar cámara USB</button></p>
+                <button type="button" onClick={()=>{setVinculandoCelular(true);setCamaraActiva(true);}}>📱 Conectar celular por internet</button>
+                <p style={{fontSize:12}}>La vinculación continúa aunque cierres F6. El celular debe tener iniciada la sesión del mismo negocio.</p>
               </>
             )}
             {configuracionFunciones === "notificaciones" && (

@@ -1,21 +1,24 @@
-
 import { useEffect, useRef, useState } from "react";
+
 import {
   collection,
   doc,
   onSnapshot,
   setDoc,
-  updateDoc,
   deleteDoc,
   serverTimestamp,
 } from "firebase/firestore";
+
 import { db } from "../firebase/firebaseConfig";
-import { QRCodeSVG } from "qrcode.react";
 
 const SERVIDORES = {
   iceServers: [
-    { urls: "stun:stun.l.google.com:19302" },
-    { urls: "stun:stun1.l.google.com:19302" },
+    {
+      urls: "stun:stun.l.google.com:19302",
+    },
+    {
+      urls: "stun:stun1.l.google.com:19302",
+    },
   ],
 };
 
@@ -47,23 +50,28 @@ export default function CamaraRemota({
     const referencia = sesionRef.current;
     sesionRef.current = null;
 
+    setSesionId("");
+    setUrl("");
+    setEstado("Desconectado");
+
     if (referencia) {
       try {
         await deleteDoc(referencia);
       } catch (error) {
-        console.warn("No se pudo eliminar la sesión:", error);
+        console.warn(
+          "No se pudo eliminar la sesión:",
+          error
+        );
       }
     }
-
-    setSesionId("");
-    setUrl("");
-    setEstado("Desconectado");
   }
 
   useEffect(() => {
     return () => {
       cancelarRef.current?.();
+
       conexionRef.current?.close();
+
       onStreamRef.current?.(null);
     };
   }, []);
@@ -74,18 +82,31 @@ export default function CamaraRemota({
       return;
     }
 
+    if (!window.RTCPeerConnection) {
+      setEstado(
+        "Este navegador no admite conexiones WebRTC."
+      );
+      return;
+    }
+
     await desconectar();
 
     try {
       setEstado("Creando conexión...");
 
       const referencia = doc(
-        collection(db, "usuarios", ownerUid, "sesionesCamara")
+        collection(
+          db,
+          "usuarios",
+          ownerUid,
+          "sesionesCamara"
+        )
       );
 
       sesionRef.current = referencia;
 
       const pc = new RTCPeerConnection(SERVIDORES);
+
       conexionRef.current = pc;
 
       pc.addTransceiver("video", {
@@ -98,18 +119,32 @@ export default function CamaraRemota({
           new MediaStream([evento.track]);
 
         onStreamRef.current?.(stream);
-        setEstado("📱 Cámara conectada");
+
+        setEstado("📱 Cámara del celular conectada");
       };
 
       pc.onconnectionstatechange = () => {
-        if (pc.connectionState === "failed") {
-          setEstado("No se pudo establecer la conexión.");
-        } else if (pc.connectionState === "disconnected") {
-          setEstado("Celular desconectado");
+        if (pc.connectionState === "connected") {
+          setEstado("📱 Celular conectado");
+        }
+
+        if (
+          pc.connectionState === "disconnected" ||
+          pc.connectionState === "failed" ||
+          pc.connectionState === "closed"
+        ) {
+          onStreamRef.current?.(null);
+
+          setEstado(
+            pc.connectionState === "failed"
+              ? "Falló la conexión con el celular"
+              : "Celular desconectado"
+          );
         }
       };
 
       const oferta = await pc.createOffer();
+
       await pc.setLocalDescription(oferta);
 
       await new Promise((resolver) => {
@@ -156,70 +191,151 @@ export default function CamaraRemota({
           ) {
             try {
               await pc.setRemoteDescription(
-                new RTCSessionDescription(datos.respuesta)
+                new RTCSessionDescription(
+                  datos.respuesta
+                )
               );
+
               setEstado("Conectando video...");
             } catch (error) {
-              setEstado(`Error WebRTC: ${error.message}`);
+              setEstado(
+                `Error WebRTC: ${error.message}`
+              );
             }
           }
+        },
+        (error) => {
+          setEstado(
+            `Error de sesión: ${error.message}`
+          );
         }
       );
 
       const destino = new URL(window.location.href);
+
       destino.search = "";
       destino.hash = "";
-      destino.searchParams.set("camaraCelular", referencia.id);
-      destino.searchParams.set("owner", ownerUid);
+
+      destino.searchParams.set(
+        "camaraCelular",
+        referencia.id
+      );
+
+      destino.searchParams.set(
+        "owner",
+        ownerUid
+      );
 
       setSesionId(referencia.id);
       setUrl(destino.toString());
-      setEstado("Escanea el QR con el celular");
+
+      setEstado(
+        "Conexión preparada. Abre el enlace en POS Init desde el celular."
+      );
     } catch (error) {
-      setEstado(`Error: ${error.message}`);
+      console.error(
+        "POS Init - Conexión remota:",
+        error
+      );
+
+      setEstado(
+        `Error: ${error.message}`
+      );
+    }
+  }
+
+  async function copiarEnlace() {
+    if (!url) return;
+
+    try {
+      await navigator.clipboard.writeText(url);
+
+      setEstado(
+        "Enlace copiado. Ábrelo en el celular."
+      );
+    } catch {
+      setEstado(
+        "No se pudo copiar el enlace."
+      );
     }
   }
 
   return (
-    <div style={{ padding: 18 }}>
-      <h2>📱 Conectar celular por internet</h2>
+    <div
+      style={{
+        padding: 18,
+        color: "#eaf4ff",
+      }}
+    >
+      <h2>📱 Conectar cámara del celular</h2>
 
       <p>
-        El celular transmitirá video a POS Init
-        para escanear códigos desde la computadora.
+        Utiliza la cámara trasera de tu celular
+        para escanear productos directamente
+        en POS Init.
       </p>
 
-      <button type="button" onClick={conectar}>
-        Generar conexión
+      <button
+        type="button"
+        onClick={conectar}
+      >
+        📱 Generar conexión
       </button>
 
       {url && (
-        <div style={{ marginTop: 18 }}>
-          <QRCodeSVG value={url} size={190} />
-
+        <div
+          style={{
+            marginTop: 18,
+          }}
+        >
           <p>
-            Abre este código QR con el celular.
+            Abre este enlace desde POS Init
+            en tu celular:
           </p>
 
           <input
             readOnly
             value={url}
-            style={{ width: "100%", padding: 8 }}
+            style={{
+              width: "100%",
+              padding: 10,
+              borderRadius: 8,
+            }}
           />
 
-          <p>Sesión: {sesionId}</p>
+          <button
+            type="button"
+            onClick={copiarEnlace}
+            style={{
+              marginTop: 10,
+            }}
+          >
+            📋 Copiar enlace
+          </button>
+
+          <p>
+            Sesión: {sesionId}
+          </p>
         </div>
       )}
 
-      <p role="status">{estado}</p>
+      <p role="status">
+        {estado}
+      </p>
 
-      <button type="button" onClick={desconectar}>
-        Desconectar
+      <button
+        type="button"
+        onClick={desconectar}
+      >
+        ⏹ Desconectar celular
       </button>
 
       {onCerrar && (
-        <button type="button" onClick={onCerrar}>
-          Cerrar
+        <button
+          type="button"
+          onClick={onCerrar}
+        >
+          Cerrar configuración
         </button>
       )}
     </div>

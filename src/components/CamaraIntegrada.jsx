@@ -13,7 +13,9 @@ export default function CamaraIntegrada({
   const controlesRef = useRef(null);
   const datosRef = useRef({ productos, onProducto });
   const ultimoRef = useRef({ codigo: "", tiempo: 0 });
+
   const [estado, setEstado] = useState("Preparando cámara...");
+  const [fuente, setFuente] = useState("conectando");
 
   useEffect(() => {
     datosRef.current = { productos, onProducto };
@@ -22,34 +24,61 @@ export default function CamaraIntegrada({
   useEffect(() => {
     let cancelado = false;
     let controles = null;
+
     const video = videoRef.current;
 
     controlesRef.current?.stop();
     controlesRef.current = null;
-    if (video) video.srcObject = null;
 
-    if (esperandoCelular) {
-      setEstado("Esperando conexión del celular (F6)...");
-      return;
+    if (video) {
+      video.pause();
+      video.srcObject = null;
     }
+
     if (!activa) {
       setEstado("Cámara pausada");
+      setFuente("pausada");
       return;
     }
+
     if (!video) return;
 
     const lector = new BrowserMultiFormatReader();
+
     const alDetectar = (resultado) => {
       if (!resultado || cancelado) return;
+
       const codigo = String(resultado.getText() || "").trim();
+
       if (!codigo) return;
+
       const ahora = Date.now();
-      if (ultimoRef.current.codigo === codigo && ahora - ultimoRef.current.tiempo < 1800) return;
-      ultimoRef.current = { codigo, tiempo: ahora };
-      const { productos: lista, onProducto: agregar } = datosRef.current;
-      const producto = lista.find((p) =>
-        String(p.codigoBarras ?? p.codigo ?? "").trim() === codigo
-      );
+
+      if (
+        ultimoRef.current.codigo === codigo &&
+        ahora - ultimoRef.current.tiempo < 1800
+      ) {
+        return;
+      }
+
+      ultimoRef.current = {
+        codigo,
+        tiempo: ahora,
+      };
+
+      const {
+        productos: lista,
+        onProducto: agregar,
+      } = datosRef.current;
+
+      const producto = lista.find((p) => {
+        const codigoProducto = String(
+          p.codigoBarras ?? p.codigo ?? ""
+        ).trim();
+
+        return codigoProducto === codigo;
+      });
+
       if (producto) {
         agregar?.(producto);
         setEstado(`✓ ${producto.nombre || codigo}`);
@@ -58,52 +87,134 @@ export default function CamaraIntegrada({
       }
     };
 
-    (async () => {
+    async function iniciarCamara() {
       try {
-        setEstado("Conectando cámara...");
-        if (streamRemoto) {
+        setFuente("conectando");
+
+        if (streamRemoto?.getVideoTracks().some((t) => t.readyState === "live")) {
+          setEstado("Conectando cámara del celular...");
+
           video.srcObject = streamRemoto;
+
           await video.play();
-          controles = await lector.decodeFromVideoElement(video, alDetectar);
-        } else {
-          controles = await lector.decodeFromVideoDevice(
-            camaraId || undefined,
+
+          if (cancelado) return;
+
+          controles = await lector.decodeFromVideoElement(
             video,
             alDetectar
           );
-        }
-        if (cancelado) controles?.stop();
-        else {
+
+          if (cancelado) {
+            controles?.stop();
+            return;
+          }
+
           controlesRef.current = controles;
-          setEstado("Escáner activo");
+
+          setFuente("celular");
+          setEstado("📱 Cámara del celular conectada");
+
+          return;
         }
+
+        setEstado(
+          esperandoCelular
+            ? "Buscando cámara USB mientras se conecta el celular..."
+            : "Iniciando cámara USB..."
+        );
+
+        controles = await lector.decodeFromVideoDevice(
+          camaraId || undefined,
+          video,
+          alDetectar
+        );
+
+        if (cancelado) {
+          controles?.stop();
+          return;
+        }
+
+        controlesRef.current = controles;
+
+        setFuente("usb");
+        setEstado("📷 Cámara USB conectada");
       } catch (error) {
-        if (!cancelado) {
-          console.error("POS Init - cámara:", error);
-          setEstado(`No se pudo iniciar: ${error.message || "revisa permisos"}`);
-        }
+        if (cancelado) return;
+
+        console.error("POS Init - Error de cámara:", error);
+
+        setFuente("error");
+
+        setEstado(
+          esperandoCelular
+            ? "Esperando celular. No se encontró cámara USB disponible."
+            : `No se pudo iniciar la cámara: ${
+                error.message || "Revisa los permisos"
+              }`
+        );
       }
-    })();
+    }
+
+    iniciarCamara();
 
     return () => {
       cancelado = true;
+
       controles?.stop();
-      if (controlesRef.current === controles) controlesRef.current = null;
-      if (video) video.srcObject = null;
+
+      if (controlesRef.current === controles) {
+        controlesRef.current = null;
+      }
+
+      if (video) {
+        video.pause();
+        video.srcObject = null;
+      }
     };
   }, [activa, camaraId, streamRemoto, esperandoCelular]);
 
+  const etiqueta =
+    !activa
+      ? "⏸ PAUSADA"
+      : fuente === "celular"
+      ? "📱 CONECTADA"
+      : fuente === "usb"
+      ? "● EN VIVO"
+      : fuente === "error"
+      ? "⚠ SIN CÁMARA"
+      : "◌ CONECTANDO";
+
   return (
-    <section className="pos-camara-integrada" aria-label="Cámara de productos">
+    <section
+      className="pos-camara-integrada"
+      aria-label="Cámara de productos"
+    >
       <div className="pos-camara-encabezado">
         <strong>📷 Cámara</strong>
-        <span>{esperandoCelular ? "📱 ESPERANDO" : activa ? "● EN VIVO" : "⏸ PAUSADA"}</span>
+        <span>{etiqueta}</span>
       </div>
+
       <div className="pos-camara-visor">
-        <video ref={videoRef} autoPlay playsInline muted />
-        <div className="pos-camara-guia" aria-hidden="true" />
+        <video
+          ref={videoRef}
+          autoPlay
+          playsInline
+          muted
+        />
+
+        <div
+          className="pos-camara-guia"
+          aria-hidden="true"
+        />
       </div>
-      <small className="pos-camara-mensaje" title={estado}>{estado}</small>
+
+      <small
+        className="pos-camara-mensaje"
+        title={estado}
+      >
+        {estado}
+      </small>
     </section>
   );
 }
