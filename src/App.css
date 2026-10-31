@@ -4991,43 +4991,51 @@ body:has(.pagina-pin-seguro),
   .ventas-pagina .carrito { padding: 12px !important; }
 }
 
-
 /* =============================================================
-   POS INIT - CATALOGO FINAL: 5 PRODUCTOS POR FILA EN ESCRITORIO
-   Reglas finales para prevalecer sobre ajustes anteriores.
+   POS INIT - CATALOGO CORREGIDO / 31-10-2026
+   5 tarjetas proporcionadas, sin estirar y sin recortar imagenes.
+   Este bloque sustituye los dos bloques finales anteriores.
    ============================================================= */
 .ventas-pagina .catalogo .productos-grid {
   display: grid !important;
-  grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
-  grid-auto-rows: 210px !important;
-  gap: 14px !important;
+  grid-template-columns: repeat(5, minmax(0, 210px)) !important;
+  grid-auto-rows: 202px !important;
+  gap: 12px !important;
   justify-content: start !important;
   align-content: start !important;
 }
+
 .ventas-pagina .catalogo .producto-card,
 .ventas-pagina .producto-card {
+  box-sizing: border-box !important;
   width: 100% !important;
-  max-width: none !important;
   min-width: 0 !important;
-  height: 210px !important;
+  max-width: 210px !important;
+  height: 202px !important;
+  min-height: 0 !important;
   display: flex !important;
   flex-direction: column !important;
   overflow: hidden !important;
   border-radius: 14px !important;
 }
+
 .ventas-pagina .catalogo .producto-imagen,
 .ventas-pagina .producto-imagen {
-  height: 140px !important;
-  min-height: 140px !important;
-  flex: 0 0 140px !important;
-  padding: 8px !important;
+  box-sizing: border-box !important;
+  width: 100% !important;
+  height: 139px !important;
+  min-height: 139px !important;
+  flex: 0 0 139px !important;
+  padding: 5px !important;
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;
   overflow: hidden !important;
 }
+
 .ventas-pagina .catalogo .producto-imagen img,
 .ventas-pagina .producto-imagen img {
+  display: block !important;
   width: 100% !important;
   height: 100% !important;
   max-width: 100% !important;
@@ -5036,21 +5044,32 @@ body:has(.pagina-pin-seguro),
   object-position: center !important;
   padding: 0 !important;
 }
+
 .ventas-pagina .catalogo .producto-info,
 .ventas-pagina .producto-info {
+  box-sizing: border-box !important;
   flex: 1 1 auto !important;
   min-height: 0 !important;
-  padding: 7px 9px !important;
+  padding: 6px 9px !important;
 }
-@media (max-width: 1200px) {
+
+/* Cuando no caben cinco tarjetas, bajamos columnas sin desbordar. */
+@media (max-width: 1499px) {
   .ventas-pagina .catalogo .productos-grid {
-    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+    grid-template-columns: repeat(4, minmax(0, 210px)) !important;
+  }
+}
+@media (max-width: 1199px) {
+  .ventas-pagina .catalogo .productos-grid {
+    grid-template-columns: repeat(3, minmax(0, 210px)) !important;
   }
 }
 @media (max-width: 900px) {
   .ventas-pagina .catalogo .productos-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
   }
+  .ventas-pagina .catalogo .producto-card,
+  .ventas-pagina .producto-card { max-width: none !important; }
 }
 @media (max-width: 600px) {
   .ventas-pagina .catalogo .productos-grid {
@@ -5059,11 +5078,14 @@ body:has(.pagina-pin-seguro),
     gap: 10px !important;
   }
   .ventas-pagina .catalogo .producto-card,
-  .ventas-pagina .producto-card { height: 190px !important; }
+  .ventas-pagina .producto-card {
+    max-width: none !important;
+    height: 190px !important;
+  }
   .ventas-pagina .catalogo .producto-imagen,
   .ventas-pagina .producto-imagen {
-    height: 120px !important;
-    min-height: 120px !important;
-    flex-basis: 120px !important;
+    height: 125px !important;
+    min-height: 125px !important;
+    flex: 0 0 125px !important;
   }
 }
