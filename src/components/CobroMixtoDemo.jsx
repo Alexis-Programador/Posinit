@@ -551,8 +551,8 @@ export default function CobroMixtoDemo({
           }}
         >
           Atajos fuera de los campos: + efectivo ·
-          - tarjeta · ↑/↓ seleccionar · Enter validar ·
-          Esc cerrar
+          - tarjeta · ↑/↓ seleccionar · validar ·
+          cerrar
         </small>
       </section>
     </div>

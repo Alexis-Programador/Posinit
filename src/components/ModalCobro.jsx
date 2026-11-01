@@ -219,7 +219,7 @@ function ModalCobro({ total = 0, procesando = false, onCerrar, onConfirmar, owne
           <label htmlFor="dineroRecibido" style={{ display: "block", marginTop: 22, marginBottom: 8, fontWeight: 800 }}>Dinero recibido</label>
           <input ref={inputRef} id="dineroRecibido" type="number" min="0" step="1" value={recibidoTexto} onChange={(e) => { setRecibidoTexto(e.target.value); setError(""); }} autoFocus style={{ width: "100%", boxSizing: "border-box", padding: 14, border: "2px solid #2563eb", borderRadius: 11, fontSize: 20 }} />
           <div style={{ display: "flex", justifyContent: "space-between", marginTop: 22, paddingBottom: 14, borderBottom: "1px solid #cbd5e1", fontSize: 18 }}><strong>Cambio</strong><strong style={{ color: "#15803d", fontSize: 22 }}>${cambio.toFixed(2)}</strong></div>
-          <p style={{ color: "#64748b", fontSize: 13 }}>↑ ↓ ajustan $1. ← → cambian entre Efectivo, SPEI y Tarjeta QR. Backspace borra; Escape cancela.</p>
+          <p style={{ color: "#64748b", fontSize: 13 }}>↑ ↓ ajustan $1. ← → cambian entre Efectivo, SPEI y Tarjeta QR. Backspace borra.</p>
         </> : <div style={{ marginTop: 12, padding: 12, background: "#eff6ff", borderRadius: 12, lineHeight: 1.5 }}>
           <strong>{metodoPago === "tarjeta" ? "💳 POS Init Pay — Tarjeta con QR" : "🏦 POS Init Pay — Transferencia SPEI"}</strong>
           {!pagoId ? <>
@@ -245,8 +245,8 @@ function ModalCobro({ total = 0, procesando = false, onCerrar, onConfirmar, owne
         {advertenciaMixto && <div role="status" style={{ marginTop: 12, padding: 10, borderRadius: 9, background: "#fffbeb", color: "#92400e" }}>{advertenciaMixto}</div>}
         {error && <div role="alert" style={{ marginTop: 14, padding: 11, borderRadius: 9, background: "#fef2f2", color: "#b91c1c", fontWeight: 700 }}>{error}</div>}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1.25fr", gap: 12, marginTop: 12 }}>
-          <button type="button" onClick={onCerrar} disabled={procesando || stripePagado} style={{ minHeight: 44, border: 0, borderRadius: 11, fontWeight: 800, cursor: "pointer" }}>Escape · Cancelar</button>
-          <button type="button" onClick={confirmar} disabled={procesando || creandoPago || stripePagado || metodoPago === "tarjeta" || (metodoPago === "digital" && (!pagoId || !depositoVerificado || estadoPago !== "pendiente"))} style={{ minHeight: 44, border: 0, borderRadius: 11, background: "#0f172a", color: "#fff", fontWeight: 800, cursor: "pointer" }}>{procesando ? "Procesando..." : metodoPago === "efectivo" ? "Enter · Confirmar venta" : metodoPago === "tarjeta" ? "Esperando Stripe" : "Confirmar depósito verificado"}</button>
+          <button type="button" onClick={onCerrar} disabled={procesando || stripePagado} style={{ minHeight: 44, border: 0, borderRadius: 11, fontWeight: 800, cursor: "pointer" }}>Cancelar</button>
+          <button type="button" onClick={confirmar} disabled={procesando || creandoPago || stripePagado || metodoPago === "tarjeta" || (metodoPago === "digital" && (!pagoId || !depositoVerificado || estadoPago !== "pendiente"))} style={{ minHeight: 44, border: 0, borderRadius: 11, background: "#0f172a", color: "#fff", fontWeight: 800, cursor: "pointer" }}>{procesando ? "Procesando..." : metodoPago === "efectivo" ? "Confirmar venta" : metodoPago === "tarjeta" ? "Esperando Stripe" : "Confirmar depósito verificado"}</button>
         </div>
       </section>
     </div>

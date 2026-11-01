@@ -498,7 +498,7 @@ function CorteCaja({
         </div>
 
         <div className="corte-ayuda-tecla">
-          Esc · Cancelar  |  Enter · Realizar corte
+          Cancelar  |  Realizar corte
         </div>
       </section>
     </div>

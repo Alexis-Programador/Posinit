@@ -1175,6 +1175,11 @@
     // =========================================================
   
     const [mostrarConfirmacionSalida, setMostrarConfirmacionSalida] = useState(false);
+    const ventasBloqueadas = Boolean(cajaEnEspera || mostrarMenu || mostrarConfigPay ||
+      mostrarCobro || mostrarCorte || mostrarHistorial || mostrarTicketsDelDia ||
+      mostrarCerrarSesionCorte || mostrarConfirmarRetiro || mostrarConfirmacionSalida ||
+      ticketVentaActual || configuracionFunciones || mostrarPanelConexion);
+
     const [cerrandoSesion, setCerrandoSesion] = useState(false);
   
     const solicitarCerrarSesion = () => {
@@ -1416,6 +1421,7 @@
       const manejarCatalogo = (
         event
       ) => {
+        if (ventasBloqueadas) return;
         if (
           mostrarMenu ||
           mostrarConfigPay ||
@@ -1465,21 +1471,19 @@
           return;
         }
   
-        // + = abrir buscador
-        if (
-          event.key === "+"
-        ) {
+        // + = activar o salir del buscador.
+        if (event.key === "+") {
           event.preventDefault();
-  
-          buscadorRef.current
-            ?.focus();
-  
-          buscadorRef.current
-            ?.select();
-  
+          if (event.repeat) return;
+
+          if (esBuscador) {
+            buscadorRef.current?.blur();
+          } else {
+            buscadorRef.current?.focus();
+            buscadorRef.current?.select();
+          }
           return;
         }
-  
         // . = limpiar buscador
         if (
           event.key === "."
@@ -1636,6 +1640,7 @@
           manejarCatalogo
         );
     }, [
+      ventasBloqueadas,
       productosFiltrados,
       productoSeleccionado,
       mostrarMenu,
@@ -1913,6 +1918,7 @@
     // Shift sola abre cobro; no interfiere con escritura de texto.
     useEffect(() => {
       const manejarShift = (event) => {
+        if (ventasBloqueadas) return;
         if (event.key !== "Shift" || event.repeat || carrito.length === 0 ||
             mostrarCobro || mostrarMenu || mostrarConfigPay || mostrarCorte || mostrarHistorial || ticketVentaActual) return;
         const el = document.activeElement;
@@ -1922,7 +1928,7 @@
       };
       window.addEventListener("keyup", manejarShift);
       return () => window.removeEventListener("keyup", manejarShift);
-    }, [carrito, mostrarCobro, mostrarMenu, mostrarConfigPay, mostrarCorte, mostrarHistorial, ticketVentaActual]);
+    }, [ventasBloqueadas, carrito, mostrarCobro, mostrarMenu, mostrarConfigPay, mostrarCorte, mostrarHistorial, ticketVentaActual]);
   
     // =========================================================
     // CONFIRMAR VENTA
@@ -2779,6 +2785,11 @@
       const manejarTicket = (
         event
       ) => {
+        if (event.key === "Escape") {
+          event.preventDefault();
+          borrarTicketYSalir();
+          return;
+        }
         if (
           event.key ===
           "Enter"
@@ -2988,7 +2999,7 @@
   
         {/* ENCABEZADO */}
   
-        <header
+        <header inert={ventasBloqueadas}
           className="ventas-header"
           style={{
             position:
@@ -3059,10 +3070,10 @@
               <div className="pos-camara-cabecera">
                 <CamaraIntegrada
                   productos={productos}
-                  onProducto={agregarProducto}
+                  onProducto={(producto) => { if (!ventasBloqueadas) agregarProducto(producto); }}
                   streamRemoto={streamRemoto}
                   camaraId={camaraElegida}
-                  activa={camaraActiva && !cajaEnEspera}
+                  activa={camaraActiva && !ventasBloqueadas}
                   esperandoCelular={false}
                 />
                 <button
@@ -3103,7 +3114,7 @@
         {/* CONTENIDO */}
   
         <div
-          className="ventas-contenido"
+          className="ventas-contenido" inert={ventasBloqueadas}
           style={{
             height: "auto",
             flex: "1 1 auto",
@@ -3557,7 +3568,7 @@
   
         </div>
   
-        <footer className="pos-ventas-barra-inferior" aria-label="Estado de caja">
+        <footer inert={ventasBloqueadas} className="pos-ventas-barra-inferior" aria-label="Estado de caja">
           <div className="pos-ventas-identidad">
             <span className="pos-ventas-avatar">{String(usuario?.nombre || "U").slice(0, 1).toUpperCase()}</span>
             <span><strong>{usuario?.nombre || "Usuario"}</strong><small>Usuario {usuario?.numeroUsuario || "—"}</small></span>
@@ -3956,7 +3967,7 @@
                   onClick={() => setMostrarConfirmarRetiro(false)}
                   style={{ minHeight: "52px", fontWeight: 700 }}
                 >
-                  Esc · Cancelar
+                  Cancelar
                 </button>
   
                 <button
@@ -3974,7 +3985,7 @@
                 >
                   {procesandoRetiro
                     ? "Registrando..."
-                    : "Enter · Confirmar retiro"}
+                    : "Confirmar retiro"}
                 </button>
               </div>
             </form>
@@ -4205,7 +4216,7 @@
                     );
                   }}
                 >
-                  Enter · Sí
+                  Sí
                 </button>
   
               </div>
@@ -4802,7 +4813,7 @@
                       "pointer",
                   }}
                 >
-                  Enter · 🖨 Imprimir y salir
+                  🖨 Imprimir y salir
                 </button>
   
               </div>
@@ -4855,7 +4866,7 @@
                     setMostrarPanelConexion(true);
                     setCamaraActiva(true);
                   }} style={{ width: "100%", marginTop: 14, padding: "12px 14px", border: 0, borderRadius: 10, background: "#2563eb", color: "white", fontWeight: 700, cursor: "pointer" }}>📱 Conectar celular con QR</button>
-                  <p style={{ fontSize: 12, color: "#64748b", marginBottom: 0 }}>Escanea el QR con la cámara de cualquier celular compatible o copia el enlace. Presiona Esc para cerrar esta ventana; la conexión puede continuar activa.</p>
+                  <p style={{ fontSize: 12, color: "#64748b", marginBottom: 0 }}>Escanea el QR con la cámara de cualquier celular compatible o copia el enlace. La conexión puede continuar activa al cerrar esta ventana.</p>
                 </>
               )}
               {configuracionFunciones === "notificaciones" && (

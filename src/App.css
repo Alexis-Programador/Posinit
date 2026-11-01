@@ -5479,3 +5479,23 @@ body:has(.pagina-pin-seguro),
 
   transform: none !important;
 }
+/* Texto del cobro visible en ambos estados del boton. */
+.ventas-pagina .boton-cobrar,
+.ventas-pagina .boton-cobrar:disabled { color: #fff; }
+.ventas-pagina .boton-cobrar:disabled { opacity: 1; background: #7aa7eb; }
+
+/* Fotos centradas, completas y con un fondo uniforme. */
+.ventas-pagina .catalogo .producto-imagen {
+  padding: 0 !important;
+  background: #fff !important;
+}
+.ventas-pagina .catalogo .producto-imagen > img {
+  object-fit: contain !important;
+  object-position: center !important;
+  width: 100% !important;
+  height: 100% !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  max-width: 100% !important;
+  max-height: 100% !important;
+}
