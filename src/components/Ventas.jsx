@@ -310,6 +310,12 @@
       () => Boolean(document.fullscreenElement)
     );
     const entradaPantallaPendiente = useRef(true);
+    useEffect(() => {
+      const tituloAnterior = document.title;
+      document.title = "POS Init - Ventas";
+      return () => { document.title = tituloAnterior; };
+    }, []);
+
     const [estadoEscape, setEstadoEscape] = useState("inactivo");
     const solicitarEscapeRef = useRef(null);
     useEffect(() => {
@@ -5060,6 +5066,9 @@
                     style={{ width: "100%", marginTop: 10, padding: 12, border: "1px solid #cbd5e1", borderRadius: 10, background: "#fff", color: "#17243a", fontWeight: 700 }}>
                     Probar aviso de Windows
                   </button>
+                  <a href="ms-settings:notifications" style={{ display: "block", marginTop: 12, color: "#1d4ed8", textAlign: "center", fontWeight: 700 }}>
+                    Abrir configuración de notificaciones de Windows
+                  </a>
                   <p style={{ fontSize: 12, color: "#64748b" }}>Si no aparece, revisa en Windows: Sistema → Notificaciones → No molestar. Desactiva la regla automática para aplicaciones a pantalla completa y permite los banners de tu navegador.</p>
                   <p style={{ fontSize: 12, color: "#64748b" }}>Los avisos de retiro se generan a partir de $3,000 MXN de efectivo en caja.</p>
                 </>
