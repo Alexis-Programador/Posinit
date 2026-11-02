@@ -38,6 +38,17 @@ function HistorialVentas({
   const [busqueda, setBusqueda] =
     useState("");
 
+  useEffect(() => {
+    const cerrarConEscape = (event) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      onCerrar?.();
+    };
+    window.addEventListener("keydown", cerrarConEscape, true);
+    return () => window.removeEventListener("keydown", cerrarConEscape, true);
+  }, [onCerrar]);
+
   // Por defecto el historial abre mostrando únicamente las ventas de hoy.
   const fechaLocalInput = (fecha = new Date()) => {
     const anio = fecha.getFullYear();

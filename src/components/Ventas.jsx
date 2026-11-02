@@ -26,7 +26,6 @@
   import { getAuth } from "firebase/auth";
   import CorteCaja from "./CorteCaja";
   import HistorialVentas from "./HistorialVentas";
-  import TicketsDelDia from "./TicketsDelDia";
   import { QRCodeSVG } from "qrcode.react";
   import { verificarPinCajero } from "../firebase/posPinBasico";
   import CamaraRemota from "./CamaraRemota";
@@ -250,8 +249,6 @@
       setMostrarCorte,
     ] = useState(false);
   
-    const [mostrarTicketsDelDia, setMostrarTicketsDelDia] = useState(false);
-  
     const [
       mostrarHistorial,
       setMostrarHistorial,
@@ -309,6 +306,77 @@
     const LIMITE_RETIRO = 3000;
   
     const [camaraActiva, setCamaraActiva] = useState(true);
+    const [pantallaCompleta, setPantallaCompleta] = useState(
+      () => Boolean(document.fullscreenElement)
+    );
+    const entradaPantallaPendiente = useRef(true);
+
+    const alternarPantallaCompleta = async () => {
+      entradaPantallaPendiente.current = false;
+      try {
+        if (document.fullscreenElement) await document.exitFullscreen();
+        else await document.documentElement.requestFullscreen();
+      } catch {
+        setError("No se pudo cambiar a pantalla completa. Usa el botón o F11 del navegador.");
+      }
+    };
+
+    useEffect(() => {
+      let activo = true;
+      let solicitando = false;
+      const actualizar = () => setPantallaCompleta(Boolean(document.fullscreenElement));
+      const entrar = async () => {
+        if (!activo || solicitando || !entradaPantallaPendiente.current) return;
+        if (document.fullscreenElement) {
+          entradaPantallaPendiente.current = false;
+          actualizar();
+          return;
+        }
+        if (!document.documentElement.requestFullscreen) return;
+        solicitando = true;
+        try {
+          await document.documentElement.requestFullscreen();
+          if (activo) entradaPantallaPendiente.current = false;
+        } catch {
+          // Si venció la activación del PIN, reintentar con la siguiente interacción.
+        } finally {
+          solicitando = false;
+        }
+      };
+      const primeraInteraccion = (event) => {
+        if (!event.isTrusted || ["Escape", "F11", "F12"].includes(event.key)) return;
+        if (event.target?.closest?.("[data-pantalla-completa]")) return;
+        void entrar();
+      };
+      document.addEventListener("fullscreenchange", actualizar);
+      window.addEventListener("pointerup", primeraInteraccion);
+      window.addEventListener("keydown", primeraInteraccion);
+      void entrar();
+      return () => {
+        activo = false;
+        document.removeEventListener("fullscreenchange", actualizar);
+        window.removeEventListener("pointerup", primeraInteraccion);
+        window.removeEventListener("keydown", primeraInteraccion);
+      };
+    }, []);
+
+    useEffect(() => {
+      const manejarPantalla = (event) => {
+        if (event.key === "F12" && !event.shiftKey) {
+          event.preventDefault();
+          event.stopImmediatePropagation();
+          return;
+        }
+        if (event.key === "F11" && !event.ctrlKey && !event.altKey && !event.metaKey) {
+          event.preventDefault();
+          event.stopImmediatePropagation();
+          if (!event.repeat) void alternarPantallaCompleta();
+        }
+      };
+      window.addEventListener("keydown", manejarPantalla, true);
+      return () => window.removeEventListener("keydown", manejarPantalla, true);
+    }, []);
+
     const [modoCamara, setModoCamara] = useState("usb");
     const [streamRemoto, setStreamRemoto] = useState(null);
     const [vinculandoCelular, setVinculandoCelular] = useState(false);
@@ -333,6 +401,19 @@
     const [cancelacionClima, setCancelacionClima] = useState(0);
     const [ubicacionActiva, setUbicacionActiva] = useState(false);
     const [avisosHabilitados, setAvisosHabilitados] = useState(() => localStorage.getItem("pos-init-avisos-habilitados") !== "false");
+    const botonNotificacionesRef = useRef(null);
+    const cambiandoNotificacionesRef = useRef(false);
+    useEffect(() => {
+      if (configuracionFunciones !== "notificaciones") return;
+      const manejarEnterNotificaciones = (event) => {
+        if (event.key !== "Enter" || event.isComposing) return;
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        if (!event.repeat) botonNotificacionesRef.current?.click();
+      };
+      window.addEventListener("keydown", manejarEnterNotificaciones, true);
+      return () => window.removeEventListener("keydown", manejarEnterNotificaciones, true);
+    }, [configuracionFunciones]);
     const cerrarAvisoEnCincoSegundos = (aviso) => window.setTimeout(() => aviso.close(), 5000);
     const [camarasConfiguracion, setCamarasConfiguracion] = useState([]);
     const [camaraElegida, setCamaraElegida] = useState(() => localStorage.getItem("pos-init-camara-preferida") || "");
@@ -1176,7 +1257,7 @@
   
     const [mostrarConfirmacionSalida, setMostrarConfirmacionSalida] = useState(false);
     const ventasBloqueadas = Boolean(cajaEnEspera || mostrarMenu || mostrarConfigPay ||
-      mostrarCobro || mostrarCorte || mostrarHistorial || mostrarTicketsDelDia ||
+      mostrarCobro || mostrarCorte || mostrarHistorial ||
       mostrarCerrarSesionCorte || mostrarConfirmarRetiro || mostrarConfirmacionSalida ||
       ticketVentaActual || configuracionFunciones || mostrarPanelConexion);
 
@@ -1232,15 +1313,13 @@
           if (event.key === "Escape" || event.key === "F1") setConfiguracionFunciones(null);
           return;
         }
-        if (mostrarConfirmacionSalida || ticketVentaActual || mostrarConfirmarRetiro || mostrarTicketsDelDia ||
+        if (mostrarConfirmacionSalida || ticketVentaActual || mostrarConfirmarRetiro ||
             mostrarCerrarSesionCorte || mostrarCobro || mostrarConfigPay) return;
-        if (mostrarHistorial || mostrarCorte || mostrarTicketsDelDia) {
+        if (mostrarHistorial || mostrarCorte) {
           if (event.key === "F1") {
             event.preventDefault();
             setMostrarHistorial(false);
-            setMostrarCorte(false);
-            setMostrarTicketsDelDia(false);
-          }
+            setMostrarCorte(false);          }
           return;
         }
         if (event.key === "F10") {
@@ -1273,9 +1352,7 @@
         } else if (event.key === "F3") {
           setMostrarMenu(false);
           setMostrarCorte(true);
-        } else if (event.key === "F4") {
-          setMostrarMenu(false);
-          setMostrarTicketsDelDia(true);
+
         } else if (event.key === "F5") {
           setMostrarMenu(false);
           setMostrarHistorial(true);
@@ -1283,7 +1360,7 @@
       };
       window.addEventListener("keydown", manejarTecla);
       return () => window.removeEventListener("keydown", manejarTecla);
-    }, [mostrarMenu, mostrarHistorial, mostrarCorte, mostrarTicketsDelDia, mostrarCobro,
+    }, [mostrarMenu, mostrarHistorial, mostrarCorte, mostrarCobro,
         mostrarCerrarSesionCorte, mostrarConfirmarRetiro, mostrarConfirmacionSalida, mostrarConfigPay,
         ticketVentaActual, efectivoEnCaja, ultimoCorteRealizado, onCerrarCaja, cajaEnEspera, configuracionFunciones]);
   
@@ -1471,6 +1548,14 @@
           return;
         }
   
+        // Menos pausa/reactiva la cámara sin alterar otros campos de texto.
+        if ((event.key === "-" || event.code === "NumpadSubtract") &&
+            !escribiendoEnOtroCampo && !event.ctrlKey && !event.altKey && !event.metaKey) {
+          event.preventDefault();
+          if (!event.repeat) setCamaraActiva((actual) => !actual);
+          return;
+        }
+
         // + = activar o salir del buscador.
         if (event.key === "+") {
           event.preventDefault();
@@ -3081,13 +3166,13 @@
                   className="pos-camara-boton"
                   onClick={() => setCamaraActiva((actual) => !actual)}
                 >
-                  {camaraActiva ? "⏸ Pausar cámara" : "▶ Activar cámara"}
+                  {camaraActiva ? "⏸ Pausar cámara · −" : "▶ Activar cámara · −"}
                 </button>
               </div>
             </div>
           </div>
           <div className="ventas-header-acciones" style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <button type="button" className="ventas-cerrar" onClick={async () => { try { if (!document.fullscreenElement) await document.documentElement.requestFullscreen(); else await document.exitFullscreen(); } catch (err) { setError("Pantalla completa requiere autorización del navegador."); } }} title="Activar o desactivar pantalla completa (F11)">Pantalla completa · F11</button>
+            <button type="button" className="ventas-cerrar" data-pantalla-completa onClick={alternarPantallaCompleta} title={pantallaCompleta ? "Quitar pantalla completa (F11)" : "Activar pantalla completa (F11)"}>{pantallaCompleta ? "Quitar pantalla completa · F11" : "Pantalla completa · F11"}</button>
             {permisoNotificacion !== "granted" && avisosHabilitados && (
               <button type="button" className="ventas-cerrar" onClick={activarNotificaciones} title="Activar notificaciones del sistema">🔔 Activar avisos</button>
             )}
@@ -3744,17 +3829,7 @@
                   </span>
                 </button>
   
-                <button
-                  type="button"
-                  style={
-                    estiloOpcionMenu
-                  }
-                  onClick={() => { setMostrarMenu(false); setMostrarTicketsDelDia(true); }}
-                >
-                  <strong>
-                    F4 · 🧾 Tickets de ventas de hoy
-                  </strong>
-                </button>
+                
   
                 <button
                   type="button"
@@ -4032,10 +4107,7 @@
           />
         )}
   
-        {mostrarTicketsDelDia && (
-          <TicketsDelDia ownerUid={ownerUid} usuario={usuario} nombreEmpresa={nombreEmpresa}
-            onCerrar={() => setMostrarTicketsDelDia(false)} />
-        )}
+
   
         {/* HISTORIAL */}
   
@@ -4866,7 +4938,7 @@
                     setMostrarPanelConexion(true);
                     setCamaraActiva(true);
                   }} style={{ width: "100%", marginTop: 14, padding: "12px 14px", border: 0, borderRadius: 10, background: "#2563eb", color: "white", fontWeight: 700, cursor: "pointer" }}>📱 Conectar celular con QR</button>
-                  <p style={{ fontSize: 12, color: "#64748b", marginBottom: 0 }}>Escanea el QR con la cámara de cualquier celular compatible o copia el enlace. La conexión puede continuar activa al cerrar esta ventana.</p>
+                  <p style={{ fontSize: 12, color: "#64748b", marginBottom: 0 }}>Escanea el QR con la cámara de tu celular para conectarlo.</p>
                 </>
               )}
               {configuracionFunciones === "notificaciones" && (
@@ -4875,7 +4947,10 @@
                   <div style={{ background: "#f1f5f9", borderRadius: 10, padding: "10px 12px", marginBottom: 14, fontSize: 13 }}>
                     Estado: <strong>{avisosHabilitados && permisoNotificacion === "granted" ? "🟢 Activadas" : permisoNotificacion === "denied" ? "🔴 Bloqueadas por el navegador" : "⚪ Desactivadas"}</strong>
                   </div>
-                  <button type="button" onClick={async () => {
+                  <button type="button" ref={botonNotificacionesRef} onClick={async () => {
+                    if (cambiandoNotificacionesRef.current) return;
+                    cambiandoNotificacionesRef.current = true;
+                    try {
                     if (avisosHabilitados) {
                       setAvisosHabilitados(false);
                       localStorage.setItem("pos-init-avisos-habilitados", "false");
@@ -4891,13 +4966,24 @@
                       if (Notification.permission === "granted") {
                         setAvisosHabilitados(true);
                         localStorage.setItem("pos-init-avisos-habilitados", "true");
-                        setMensajeConfiguracion("Notificaciones activadas.");
+                        setMensajeConfiguracion("Notificaciones prendidas.");
+                        try {
+                          const aviso = new Notification("Notificaciones prendidas", {
+                            body: "Los avisos de POS Init están activados.",
+                          });
+                          cerrarAvisoEnCincoSegundos(aviso);
+                          aviso.onclick = () => { window.focus(); aviso.close(); };
+                        } catch {
+                          setMensajeConfiguracion("Notificaciones prendidas. El sistema no pudo mostrar el aviso.");
+                        }
                       } else {
                         setAvisosHabilitados(false);
                         localStorage.setItem("pos-init-avisos-habilitados", "false");
                         setMensajeConfiguracion("Autoriza las notificaciones en el navegador para activarlas.");
                       }
                     }
+                  
+                    } finally { cambiandoNotificacionesRef.current = false; }
                   }} style={{ width: "100%", border: 0, borderRadius: 10, padding: "12px 14px", background: avisosHabilitados ? "#e2e8f0" : "#2563eb", color: avisosHabilitados ? "#17243a" : "#fff", fontWeight: 700, cursor: "pointer" }}>
                     {avisosHabilitados ? "🔕 Desactivar notificaciones" : "🔔 Activar notificaciones"}
                   </button>

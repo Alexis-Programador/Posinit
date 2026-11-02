@@ -97,6 +97,7 @@ function ModalCobro({ total = 0, procesando = false, onCerrar, onConfirmar, owne
   const totalNumero = Number(total || 0);
   const recibido = Number(recibidoTexto || 0);
   const cambio = useMemo(() => Math.max(0, recibido - totalNumero), [recibido, totalNumero]);
+  const faltante = Math.max(0, Math.round(totalNumero * 100) - Math.round((Number.isFinite(recibido) ? recibido : 0) * 100)) / 100;
 
   const confirmar = () => {
     if (procesando) return;
@@ -218,7 +219,7 @@ function ModalCobro({ total = 0, procesando = false, onCerrar, onConfirmar, owne
         {metodoPago === "efectivo" ? <>
           <label htmlFor="dineroRecibido" style={{ display: "block", marginTop: 22, marginBottom: 8, fontWeight: 800 }}>Dinero recibido</label>
           <input ref={inputRef} id="dineroRecibido" type="number" min="0" step="1" value={recibidoTexto} onChange={(e) => { setRecibidoTexto(e.target.value); setError(""); }} autoFocus style={{ width: "100%", boxSizing: "border-box", padding: 14, border: "2px solid #2563eb", borderRadius: 11, fontSize: 20 }} />
-          <div style={{ display: "flex", justifyContent: "space-between", marginTop: 22, paddingBottom: 14, borderBottom: "1px solid #cbd5e1", fontSize: 18 }}><strong>Cambio</strong><strong style={{ color: "#15803d", fontSize: 22 }}>${cambio.toFixed(2)}</strong></div>
+          <div style={{ display: "flex", justifyContent: "space-between", marginTop: 22, paddingBottom: 14, borderBottom: "1px solid #cbd5e1", fontSize: 18 }}><strong>{faltante > 0 ? "Faltante a pagar" : "Cambio"}</strong><strong aria-live="polite" style={{ color: faltante > 0 ? "#b45309" : "#15803d", fontSize: 22 }}>${(faltante > 0 ? faltante : cambio).toFixed(2)}</strong></div>
           <p style={{ color: "#64748b", fontSize: 13 }}>↑ ↓ ajustan $1. ← → cambian entre Efectivo, SPEI y Tarjeta QR. Backspace borra.</p>
         </> : <div style={{ marginTop: 12, padding: 12, background: "#eff6ff", borderRadius: 12, lineHeight: 1.5 }}>
           <strong>{metodoPago === "tarjeta" ? "💳 POS Init Pay — Tarjeta con QR" : "🏦 POS Init Pay — Transferencia SPEI"}</strong>

@@ -409,45 +409,7 @@ export default function CamaraRemota({
               para abrir la cámara de POS Init.
             </p>
 
-            <input
-              readOnly
-              value={url}
-              onFocus={(e) => e.target.select()}
-              style={{
-                width: "100%",
-                boxSizing: "border-box",
-                padding: 11,
-                border: "1px solid #94a3b8",
-                borderRadius: 10,
-                background: "#ffffff",
-                color: "#0f172a",
-                fontSize: 12,
-              }}
-            />
 
-            <button
-              type="button"
-              onClick={copiarEnlace}
-              style={{
-                ...boton,
-                width: "100%",
-                marginTop: 10,
-                color: "#ffffff",
-                background: "#0f766e",
-              }}
-            >
-              📋 Copiar enlace
-            </button>
-
-            <p
-              style={{
-                color: "#64748b",
-                fontSize: 11,
-                overflowWrap: "anywhere",
-              }}
-            >
-              Sesión: {sesionId}
-            </p>
           </div>
         )}
 
