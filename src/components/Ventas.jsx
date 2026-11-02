@@ -310,13 +310,6 @@
       () => Boolean(document.fullscreenElement)
     );
     const entradaPantallaPendiente = useRef(true);
-    const [avisoNotificaciones, setAvisoNotificaciones] = useState(0);
-    useEffect(() => {
-      if (!avisoNotificaciones) return;
-      const temporizador = window.setTimeout(() => setAvisoNotificaciones(0), 6000);
-      return () => window.clearTimeout(temporizador);
-    }, [avisoNotificaciones]);
-
     const [estadoEscape, setEstadoEscape] = useState("inactivo");
     const solicitarEscapeRef = useRef(null);
     useEffect(() => {
@@ -465,7 +458,7 @@
     useEffect(() => {
       if (configuracionFunciones !== "notificaciones") return;
       const manejarEnterNotificaciones = (event) => {
-        if (event.key !== "Enter" || event.isComposing) return;
+        if (event.key !== "Enter" || event.isComposing || event.target?.closest?.("[data-probar-notificacion]")) return;
         event.preventDefault();
         event.stopImmediatePropagation();
         if (!event.repeat) botonNotificacionesRef.current?.click();
@@ -512,11 +505,13 @@
         return;
       }
       try {
-        const aviso = new Notification("POS Init · Prueba de notificaciones", {
-          body: "Las notificaciones del sistema están funcionando. Se cerrará en 5 segundos.",
+        const aviso = new Notification("Notificaciones activadas", {
+          body: "Esta es una notificación de Windows enviada por POS Init.",
           tag: "pos-init-prueba",
+          requireInteraction: true,
+          silent: false,
         });
-        cerrarAvisoEnCincoSegundos(aviso);
+        aviso.onerror = () => setMensajeConfiguracion("Windows no pudo mostrar el aviso. Revisa las notificaciones del navegador y No molestar.");
         aviso.onclick = () => { window.focus(); aviso.close(); };
         setMensajeConfiguracion("Notificación enviada a Windows. Comprueba el centro de notificaciones.");
       } catch (err) { setMensajeConfiguracion(`No se pudo mostrar la notificación: ${err.message}`); }
@@ -3035,11 +3030,7 @@
   
     return (
       <main className="ventas-pagina">
-        {avisoNotificaciones > 0 && (
-          <div role="status" aria-live="polite" style={{ position: "fixed", top: 20, right: 20, zIndex: 11000, padding: "16px 22px", borderRadius: 14, background: "#166534", color: "#fff", boxShadow: "0 8px 28px #0004", fontWeight: 700, pointerEvents: "none" }}>
-            🔔 Notificaciones activadas
-          </div>
-        )}
+
   
         <style>{`
           /* POS Init: tarjetas compactas, imagen completa y datos legibles. */
@@ -3229,15 +3220,13 @@
                   className="pos-camara-boton"
                   onClick={() => setCamaraActiva((actual) => !actual)}
                 >
-                  {camaraActiva ? "⏸ Pausar cámara · −" : "▶ Activar cámara · −"}
+                  {camaraActiva ? "⏸ Pausar cámara" : "▶ Activar cámara"}
                 </button>
               </div>
             </div>
           </div>
           <div className="ventas-header-acciones" style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            {pantallaCompleta && estadoEscape === "activo" && (
-              <small role="status" style={{ color: "#bbf7d0" }}>Esc cierra ventanas</small>
-            )}
+
             {pantallaCompleta && ["pendiente", "solicitando"].includes(estadoEscape) && (
               <button type="button" className="ventas-cerrar" disabled={estadoEscape === "solicitando"}
                 onClick={() => { void solicitarEscapeRef.current?.(); }}
@@ -5043,7 +5032,6 @@
                         setAvisosHabilitados(true);
                         localStorage.setItem("pos-init-avisos-habilitados", "true");
                         setMensajeConfiguracion("Notificaciones activadas.");
-                        setAvisoNotificaciones(Date.now());
                         try {
                           const aviso = new Notification("Notificaciones activadas", {
                             body: "Los avisos de POS Init están activados.",
@@ -5067,6 +5055,12 @@
                   }} style={{ width: "100%", border: 0, borderRadius: 10, padding: "12px 14px", background: avisosHabilitados ? "#e2e8f0" : "#2563eb", color: avisosHabilitados ? "#17243a" : "#fff", fontWeight: 700, cursor: "pointer" }}>
                     {avisosHabilitados ? "🔕 Desactivar notificaciones" : "🔔 Activar notificaciones"}
                   </button>
+                  <button type="button" data-probar-notificacion onClick={probarNotificacion}
+                    disabled={!avisosHabilitados || permisoNotificacion !== "granted"}
+                    style={{ width: "100%", marginTop: 10, padding: 12, border: "1px solid #cbd5e1", borderRadius: 10, background: "#fff", color: "#17243a", fontWeight: 700 }}>
+                    Probar aviso de Windows
+                  </button>
+                  <p style={{ fontSize: 12, color: "#64748b" }}>Si no aparece, revisa en Windows: Sistema → Notificaciones → No molestar. Desactiva la regla automática para aplicaciones a pantalla completa y permite los banners de tu navegador.</p>
                   <p style={{ fontSize: 12, color: "#64748b" }}>Los avisos de retiro se generan a partir de $3,000 MXN de efectivo en caja.</p>
                 </>
               )}
