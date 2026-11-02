@@ -95,7 +95,7 @@
   
     useEffect(() => {
       if (actualizarToken > 0) activarUbicacion();
-      // El token cambia únicamente al solicitar F8.
+      // El token cambia únicamente al solicitar F7.
     }, [actualizarToken]);
   
     return (
@@ -310,6 +310,61 @@
       () => Boolean(document.fullscreenElement)
     );
     const entradaPantallaPendiente = useRef(true);
+    const [avisoNotificaciones, setAvisoNotificaciones] = useState(0);
+    useEffect(() => {
+      if (!avisoNotificaciones) return;
+      const temporizador = window.setTimeout(() => setAvisoNotificaciones(0), 6000);
+      return () => window.clearTimeout(temporizador);
+    }, [avisoNotificaciones]);
+
+    const [estadoEscape, setEstadoEscape] = useState("inactivo");
+    const solicitarEscapeRef = useRef(null);
+    useEffect(() => {
+      let activo = true;
+      let pendiente = false;
+      let sesion = 0;
+      const activarEscape = async () => {
+        if (!activo || pendiente || !document.fullscreenElement) return;
+        if (!window.isSecureContext || !navigator.keyboard?.lock) {
+          setEstadoEscape("no-compatible");
+          return;
+        }
+        pendiente = true;
+        const sesionActual = sesion;
+        setEstadoEscape("solicitando");
+        try {
+          await navigator.keyboard.lock(["Escape"]);
+          if (!activo || !document.fullscreenElement) {
+            navigator.keyboard.unlock();
+            return;
+          }
+          if (sesionActual === sesion) setEstadoEscape("activo");
+        } catch {
+          if (activo && sesionActual === sesion && document.fullscreenElement) setEstadoEscape("pendiente");
+        } finally {
+          pendiente = false;
+        }
+      };
+      const sincronizarEscape = () => {
+        sesion += 1;
+        if (document.fullscreenElement) {
+          void activarEscape();
+        } else {
+          navigator.keyboard?.unlock?.();
+          setEstadoEscape("inactivo");
+        }
+      };
+      solicitarEscapeRef.current = activarEscape;
+      document.addEventListener("fullscreenchange", sincronizarEscape);
+      sincronizarEscape();
+      return () => {
+        activo = false;
+        sesion += 1;
+        solicitarEscapeRef.current = null;
+        document.removeEventListener("fullscreenchange", sincronizarEscape);
+        navigator.keyboard?.unlock?.();
+      };
+    }, []);
 
     const alternarPantallaCompleta = async () => {
       entradaPantallaPendiente.current = false;
@@ -362,6 +417,10 @@
 
     useEffect(() => {
       const manejarPantalla = (event) => {
+        if (event.key === "Escape" && document.fullscreenElement) {
+          event.preventDefault();
+          return; // Los manejadores de cada ventana siguen recibiendo Escape.
+        }
         if (event.key === "F12" && !event.shiftKey) {
           event.preventDefault();
           event.stopImmediatePropagation();
@@ -1252,7 +1311,7 @@
       };
   
     // =========================================================
-    // MENÚ F1-F6
+    // MENÚ F1-F9
     // =========================================================
   
     const [mostrarConfirmacionSalida, setMostrarConfirmacionSalida] = useState(false);
@@ -1300,7 +1359,7 @@
     useEffect(() => {
       const manejarTecla = (event) => {
         if (cajaEnEspera) return;
-        if (!["F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9", "F10", "Escape"].includes(event.key)) return;
+        if (!["F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9", "Escape"].includes(event.key)) return;
         if (event.key === "Escape" && mostrarPanelConexion) {
           event.preventDefault();
           setMostrarPanelConexion(false);
@@ -1322,11 +1381,11 @@
             setMostrarCorte(false);          }
           return;
         }
-        if (event.key === "F10") {
+        if (event.key === "F9") {
           solicitarCerrarSesion();
           return;
         }
-        if (event.key === "F9") {
+        if (event.key === "F8") {
           ponerCajaEnEspera();
           return;
         }
@@ -1335,8 +1394,8 @@
           setMostrarMenu((abierto) => !abierto);
           return;
         }
-        if (mostrarMenu && ["F6", "F7", "F8"].includes(event.key)) {
-          abrirConfiguracion({ F6: "camara", F7: "notificaciones", F8: "ubicacion" }[event.key]);
+        if (mostrarMenu && ["F5", "F6", "F7"].includes(event.key)) {
+          abrirConfiguracion({ F5: "camara", F6: "notificaciones", F7: "ubicacion" }[event.key]);
           return;
         }
         if (event.key === "Escape" && mostrarMenu) { setMostrarMenu(false); return; }
@@ -1353,7 +1412,7 @@
           setMostrarMenu(false);
           setMostrarCorte(true);
 
-        } else if (event.key === "F5") {
+        } else if (event.key === "F4") {
           setMostrarMenu(false);
           setMostrarHistorial(true);
         }
@@ -2899,7 +2958,6 @@
             "F3",
             "F4",
             "F5",
-            "F6",
           ].includes(
             event.key
           )
@@ -2977,6 +3035,11 @@
   
     return (
       <main className="ventas-pagina">
+        {avisoNotificaciones > 0 && (
+          <div role="status" aria-live="polite" style={{ position: "fixed", top: 20, right: 20, zIndex: 11000, padding: "16px 22px", borderRadius: 14, background: "#166534", color: "#fff", boxShadow: "0 8px 28px #0004", fontWeight: 700, pointerEvents: "none" }}>
+            🔔 Notificaciones activadas
+          </div>
+        )}
   
         <style>{`
           /* POS Init: tarjetas compactas, imagen completa y datos legibles. */
@@ -3172,6 +3235,19 @@
             </div>
           </div>
           <div className="ventas-header-acciones" style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            {pantallaCompleta && estadoEscape === "activo" && (
+              <small role="status" style={{ color: "#bbf7d0" }}>Esc cierra ventanas</small>
+            )}
+            {pantallaCompleta && ["pendiente", "solicitando"].includes(estadoEscape) && (
+              <button type="button" className="ventas-cerrar" disabled={estadoEscape === "solicitando"}
+                onClick={() => { void solicitarEscapeRef.current?.(); }}
+                title="Activar Esc para cerrar ventanas sin salir de pantalla completa">
+                {estadoEscape === "solicitando" ? "Activando Esc…" : "Activar cierre con Esc"}
+              </button>
+            )}
+            {pantallaCompleta && estadoEscape === "no-compatible" && (
+              <small role="status" style={{ color: "#fde68a" }}>Este navegador no permite reservar Esc</small>
+            )}
             <button type="button" className="ventas-cerrar" data-pantalla-completa onClick={alternarPantallaCompleta} title={pantallaCompleta ? "Quitar pantalla completa (F11)" : "Activar pantalla completa (F11)"}>{pantallaCompleta ? "Quitar pantalla completa · F11" : "Pantalla completa · F11"}</button>
             {permisoNotificacion !== "granted" && avisosHabilitados && (
               <button type="button" className="ventas-cerrar" onClick={activarNotificaciones} title="Activar notificaciones del sistema">🔔 Activar avisos</button>
@@ -3850,20 +3926,20 @@
                   }}
                 >
                   <strong>
-                    F5 · 🧾 Historial de ventas
+                    F4 · 🧾 Historial de ventas
                   </strong>
                 </button>
   
                 <button type="button" style={estiloOpcionMenu} onClick={() => abrirConfiguracion("camara")}>
-                  <strong>F6 · 📷 Configurar cámara</strong>
+                  <strong>F5 · 📷 Configurar cámara</strong>
                   <span>Seleccionar webcam para escanear productos.</span>
                 </button>
                 <button type="button" style={estiloOpcionMenu} onClick={() => abrirConfiguracion("notificaciones")}>
-                  <strong>F7 · 🔔 Notificaciones del sistema</strong>
+                  <strong>F6 · 🔔 Notificaciones del sistema</strong>
                   <span>Activar permisos y probar avisos de Windows.</span>
                 </button>
                 <button type="button" style={estiloOpcionMenu} onClick={() => abrirConfiguracion("ubicacion")}>
-                  <strong>F8 · 📍 Ubicación y clima</strong>
+                  <strong>F7 · 📍 Ubicación y clima</strong>
                   <span>Validar ubicación y actualizar el clima.</span>
                 </button>
   
@@ -3871,13 +3947,13 @@
                   onClick={() => {
                     ponerCajaEnEspera();
                   }}>
-                  <strong>F9 · 🔒 Poner caja en espera</strong>
+                  <strong>F8 · 🔒 Poner caja en espera</strong>
                   <span>Bloquear la caja y desbloquear con el PIN del cajero.</span>
                 </button>
   
                 <button type="button" style={estiloOpcionMenu}
                   onClick={solicitarCerrarSesion}>
-                  <strong>F10 · 🚪 Cerrar sesión</strong>
+                  <strong>F9 · 🚪 Cerrar sesión</strong>
                   <span>Siempre disponible. Registra el efectivo pendiente.</span>
                 </button>
   
@@ -4916,8 +4992,8 @@
               {configuracionFunciones === "camara" && (
                 <>
                   <p style={{ marginBottom: 10 }}>Elige la cámara de esta computadora o conecta cualquier celular mediante QR.</p>
-                  <label htmlFor="pos-camara-f6" style={{ display: "block", fontWeight: 700, marginBottom: 6 }}>Cámara de esta computadora</label>
-                  <select id="pos-camara-f6" aria-label="Seleccionar cámara" value={camaraElegida} onChange={(e) => {
+                  <label htmlFor="pos-camara-f5" style={{ display: "block", fontWeight: 700, marginBottom: 6 }}>Cámara de esta computadora</label>
+                  <select id="pos-camara-f5" aria-label="Seleccionar cámara" value={camaraElegida} onChange={(e) => {
                     const id = e.target.value;
                     setCamaraElegida(id);
                     if (id) {
@@ -4966,15 +5042,19 @@
                       if (Notification.permission === "granted") {
                         setAvisosHabilitados(true);
                         localStorage.setItem("pos-init-avisos-habilitados", "true");
-                        setMensajeConfiguracion("Notificaciones prendidas.");
+                        setMensajeConfiguracion("Notificaciones activadas.");
+                        setAvisoNotificaciones(Date.now());
                         try {
-                          const aviso = new Notification("Notificaciones prendidas", {
+                          const aviso = new Notification("Notificaciones activadas", {
                             body: "Los avisos de POS Init están activados.",
+                            tag: "pos-init-notificaciones-activadas",
+                            requireInteraction: true,
+                            silent: false,
                           });
-                          cerrarAvisoEnCincoSegundos(aviso);
+                          aviso.onerror = () => setMensajeConfiguracion("Notificaciones activadas. Revisa los permisos de avisos de Windows y No molestar.");
                           aviso.onclick = () => { window.focus(); aviso.close(); };
                         } catch {
-                          setMensajeConfiguracion("Notificaciones prendidas. El sistema no pudo mostrar el aviso.");
+                          setMensajeConfiguracion("Notificaciones activadas. El sistema no pudo mostrar el aviso.");
                         }
                       } else {
                         setAvisosHabilitados(false);

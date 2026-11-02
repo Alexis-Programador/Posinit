@@ -425,18 +425,22 @@ function CorteCaja({
 
           <input
             id="efectivoContado"
-            type="number"
-            min="0"
-            step="1"
+            type="text"
+            inputMode="decimal"
+            autoComplete="off"
             placeholder="0.00"
             value={efectivoContado}
             onChange={(event) => {
-              const valor = event.target.value;
+              const valor = event.target.value.replace(/,/g, ".");
               if (!/^(?:\d+)?(?:\.\d{0,2})?$/.test(valor)) return;
               setEfectivoContado(valor);
               setError("");
             }}
             onKeyDown={(event) => {
+              if (!event.ctrlKey && !event.metaKey && !event.altKey && event.key.length === 1 && !/[0-9.,]/.test(event.key)) {
+                event.preventDefault();
+                return;
+              }
               if (event.key !== "ArrowUp" && event.key !== "ArrowDown") return;
               event.preventDefault();
               const actual = Number(efectivoContado || 0);
