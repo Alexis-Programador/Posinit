@@ -464,7 +464,7 @@
     useEffect(() => {
       if (configuracionFunciones !== "notificaciones") return;
       const manejarEnterNotificaciones = (event) => {
-        if (event.key !== "Enter" || event.isComposing || event.target?.closest?.("[data-probar-notificacion]")) return;
+        if (event.key !== "Enter" || event.isComposing || event.target?.closest?.("[data-probar-notificacion], [data-guia-notificaciones]")) return;
         event.preventDefault();
         event.stopImmediatePropagation();
         if (!event.repeat) botonNotificacionesRef.current?.click();
@@ -4982,7 +4982,21 @@
           )}
   {configuracionFunciones && (
           <div role="dialog" aria-modal="true" aria-label="Configuración de funciones" style={{ position: "fixed", inset: 0, zIndex: 10020, background: "#0b182bd9", display: "grid", placeItems: "center", padding: 16 }}>
-            <section style={{ width: "min(440px, 100%)", maxHeight: "90dvh", overflowY: "auto", background: "white", color: "#17243a", borderRadius: 16, padding: 22, boxShadow: "0 20px 60px #0004", transform: `translate(${posicionConfig.x}px, ${posicionConfig.y}px)` }}>
+            <div className={configuracionFunciones === "notificaciones" ? "pos-config-layout pos-config-layout-notificaciones" : "pos-config-layout"}
+              style={{ width: configuracionFunciones === "notificaciones" ? "min(940px, 100%)" : "min(440px, 100%)", maxHeight: "90dvh", overflowY: "auto", transform: `translate(${posicionConfig.x}px, ${posicionConfig.y}px)` }}>
+              <style>{`
+                .pos-config-layout { display: grid; gap: 16px; align-items: start; }
+                .pos-config-layout-notificaciones { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+                .pos-config-layout > section, .pos-config-layout > aside { min-width: 0; box-sizing: border-box; }
+                .pos-notificaciones-pasos { list-style: none; margin: 20px 0 0; padding: 0; display: grid; gap: 22px; }
+                .pos-notificaciones-pasos li { display: grid; grid-template-columns: 30px minmax(0, 1fr); gap: 12px; }
+                .pos-notificaciones-paso { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; background: #dbeafe; color: #1d4ed8; font-weight: 800; }
+                .pos-notificaciones-pasos h4 { margin: 3px 0 7px; font-size: 15px; }
+                .pos-notificaciones-pasos p { margin: 0 0 10px; font-size: 13px; line-height: 1.6; color: #475569; }
+                .pos-notificaciones-pasos a:focus-visible, .pos-notificaciones-pasos button:focus-visible { outline: 3px solid #60a5fa; outline-offset: 3px; }
+                @media (max-width: 760px) { .pos-config-layout-notificaciones { grid-template-columns: minmax(0, 1fr); } }
+              `}</style>
+            <section style={{ background: "white", color: "#17243a", borderRadius: 16, padding: 22, boxShadow: "0 20px 60px #0004" }}>
               <h2 onPointerDown={iniciarArrastreConfig} onPointerMove={moverConfig} onPointerUp={() => { arrastreConfigRef.current = null; }} onPointerCancel={() => { arrastreConfigRef.current = null; }} style={{ marginTop: 0, cursor: "move", touchAction: "none", userSelect: "none" }}>{configuracionFunciones === "camara" ? "📷 Configurar cámara" : configuracionFunciones === "notificaciones" ? "🔔 Notificaciones de Windows" : "📍 Ubicación y clima"}</h2>
               {configuracionFunciones === "camara" && (
                 <>
@@ -5066,10 +5080,6 @@
                     style={{ width: "100%", marginTop: 10, padding: 12, border: "1px solid #cbd5e1", borderRadius: 10, background: "#fff", color: "#17243a", fontWeight: 700 }}>
                     Probar aviso de Windows
                   </button>
-                  <a href="ms-settings:notifications" style={{ display: "block", marginTop: 12, color: "#1d4ed8", textAlign: "center", fontWeight: 700 }}>
-                    Abrir configuración de notificaciones de Windows
-                  </a>
-                  <p style={{ fontSize: 12, color: "#64748b" }}>Si no aparece, revisa en Windows: Sistema → Notificaciones → No molestar. Desactiva la regla automática para aplicaciones a pantalla completa y permite los banners de tu navegador.</p>
                   <p style={{ fontSize: 12, color: "#64748b" }}>Los avisos de retiro se generan a partir de $3,000 MXN de efectivo en caja.</p>
                 </>
               )}
@@ -5096,6 +5106,42 @@
               )}
               {mensajeConfiguracion && <p role="status" style={{ fontSize: 13 }}>{mensajeConfiguracion}</p>}
             </section>
+            {configuracionFunciones === "notificaciones" && (
+              <aside data-guia-notificaciones aria-labelledby="guia-avisos-titulo" style={{ background: "#f8fafc", color: "#17243a", border: "1px solid #dbeafe", borderRadius: 16, padding: 24, boxShadow: "0 20px 60px #0003" }}>
+                <span style={{ color: "#2563eb", fontSize: 11, fontWeight: 800, letterSpacing: "0.08em" }}>GUÍA PARA WINDOWS 11</span>
+                <h3 id="guia-avisos-titulo" style={{ margin: "8px 0", fontSize: 21 }}>Recibe avisos con pantalla completa</h3>
+                <p style={{ margin: 0, color: "#64748b", fontSize: 13, lineHeight: 1.6 }}>Haz este ajuste una vez en cada computadora de caja.</p>
+                <ol className="pos-notificaciones-pasos">
+                  <li>
+                    <span className="pos-notificaciones-paso" aria-hidden="true">1</span>
+                    <div>
+                      <h4>Abre las notificaciones de Windows</h4>
+                      <p>Usa este botón. Si el navegador lo pregunta, permite abrir Configuración. También puedes ir a Inicio → Configuración → Sistema → Notificaciones.</p>
+                      <a href="ms-settings:notifications" style={{ display: "inline-block", padding: "10px 14px", borderRadius: 9, background: "#2563eb", color: "#fff", fontSize: 13, fontWeight: 700, textDecoration: "none" }}>Abrir configuración de Windows</a>
+                    </div>
+                  </li>
+                  <li>
+                    <span className="pos-notificaciones-paso" aria-hidden="true">2</span>
+                    <div>
+                      <h4>Permite los avisos al usar F11</h4>
+                      <p>Deja <strong>No molestar</strong> desactivado. Abre <strong>Activar no molestar automáticamente</strong> y desmarca esta opción:</p>
+                      <div style={{ padding: 12, borderRadius: 10, border: "1px solid #bfdbfe", background: "#eff6ff", fontSize: 13, lineHeight: 1.6 }}><span aria-hidden="true">☐ </span><strong>Cuando se usa una aplicación en modo de pantalla completa</strong></div>
+                    </div>
+                  </li>
+                  <li>
+                    <span className="pos-notificaciones-paso" aria-hidden="true">3</span>
+                    <div>
+                      <h4>Vuelve a Ventas y prueba el aviso</h4>
+                      <p>Regresa a esta página. Si saliste de pantalla completa, pulsa <strong>F11</strong> para entrar de nuevo. Activa las notificaciones en este panel y pulsa el botón de prueba.</p>
+                      <button type="button" data-probar-notificacion onClick={probarNotificacion} disabled={!avisosHabilitados || permisoNotificacion !== "granted"}
+                        style={{ padding: "10px 14px", border: "1px solid #cbd5e1", borderRadius: 9, background: "#fff", color: "#17243a", fontWeight: 700, cursor: avisosHabilitados && permisoNotificacion === "granted" ? "pointer" : "not-allowed" }}>Probar aviso de Windows</button>
+                    </div>
+                  </li>
+                </ol>
+                <p style={{ margin: "20px 0 0", borderTop: "1px solid #e2e8f0", paddingTop: 14, fontSize: 12, lineHeight: 1.6, color: "#64748b" }}>¿Todavía no aparece? En las notificaciones de Windows, busca Chrome o Edge y activa <strong>Mostrar banners de notificación</strong>.</p>
+              </aside>
+            )}
+            </div>
           </div>
         )}
   
