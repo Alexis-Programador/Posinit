@@ -1,0 +1,38 @@
+.ventas-pagina header.ventas-header.pos-header-configurable,
+.ventas-pagina button.boton-cobrar.pos-cobro-configurable,
+.ventas-pagina button.boton-cobrar.pos-cobro-configurable:disabled {
+  background: var(--pos-fondo) !important;
+  color: var(--pos-texto) !important;
+}
+.ventas-pagina .pos-header-configurable h1,
+.ventas-pagina .pos-header-configurable .pos-ventas-empresa {
+  color: var(--pos-texto) !important;
+}
+.ventas-pagina .pos-header-configurable .ventas-cerrar {
+  color: var(--pos-texto) !important;
+  background: transparent !important;
+  border-color: currentColor;
+}
+.ventas-pagina button.pos-cobro-configurable:disabled { opacity: .72; }
+
+.ventas-pagina.pos-negocio .catalogo,
+.ventas-pagina.pos-negocio .catalogo-superior,
+.ventas-pagina.pos-negocio .productos-grid { background:var(--pos-catalogo) !important; color:var(--pos-letra-catalogo); }
+.ventas-pagina.pos-negocio .producto-card,
+.ventas-pagina.pos-negocio .producto-card .producto-info { background:var(--pos-tarjeta) !important; color:var(--pos-letra-tarjeta) !important; }
+.ventas-pagina.pos-negocio .producto-info :is(h3,strong,.producto-codigo,.producto-precio) {color:var(--pos-letra-tarjeta) !important;}
+
+.ventas-pagina.pos-negocio .pos-menu-f1 button {
+  background:var(--pos-f1) !important;
+  color:var(--pos-texto-f1) !important;
+}
+.ventas-pagina.pos-negocio .pos-menu-f1 button :is(strong,small,span,p) {
+  color:var(--pos-texto-f1) !important;
+}
+.ventas-pagina.pos-negocio .pos-menu-f1 button:focus-visible,
+.ventas-pagina.pos-negocio .producto-card:focus-visible {
+  outline:3px solid var(--pos-seleccion) !important;
+  outline-offset:2px;
+}
+
+.ventas-pagina.pos-negocio .carrito :is(.carrito-encabezado h2,.carrito-encabezado p,.carrito-item-info h3,.carrito-item-info p,.carrito-subtotal) {color:var(--pos-texto-panel) !important;}

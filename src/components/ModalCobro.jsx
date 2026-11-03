@@ -1,6 +1,6 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { collection, doc, getDoc, onSnapshot, serverTimestamp, setDoc } from "firebase/firestore";
+import { collection, doc, onSnapshot, serverTimestamp, setDoc } from "firebase/firestore";
 import { db } from "../firebase/firebaseConfig";
 import { QRCodeSVG } from "qrcode.react";
 import CobroMixtoEnProceso from "./CobroMixtoEnProceso";
@@ -17,16 +17,12 @@ function ModalCobro({ total = 0, procesando = false, onCerrar, onConfirmar, owne
   const [titular, setTitular] = useState("");
   const [clabe, setClabe] = useState("");
   useEffect(() => {
-    let activo = true;
-    if (!ownerUid) return undefined;
-    getDoc(doc(db, "usuarios", ownerUid, "configuracion", "posInitPay"))
-      .then(snap => {
-        if (!activo || !snap.exists()) return;
-        const d = snap.data();
-        setBanco(d.banco || ""); setTitular(d.titular || ""); setClabe(d.clabe || "");
-      })
-      .catch(() => { if (activo) setError("No se pudo cargar la configuración bancaria del negocio."); });
-    return () => { activo = false; };
+    setBanco(""); setTitular(""); setClabe("");
+    if (!ownerUid) return;
+    return onSnapshot(doc(db,"usuarios",ownerUid,"configuracion","posInitPay"), snap=>{
+      const d = snap.data() || {};
+      setBanco(d.banco || ""); setTitular(d.titular || ""); setClabe(d.clabe || "");
+    },()=>{setBanco("");setTitular("");setClabe("");setError("No se pudo consultar la configuración SPEI.");});
   }, [ownerUid]);
   const [pagoId, setPagoId] = useState("");
   const [estadoPago, setEstadoPago] = useState("");

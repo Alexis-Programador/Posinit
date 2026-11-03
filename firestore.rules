@@ -86,22 +86,31 @@ service cloud.firestore {
       // PRODUCTOS
       // ===================================================
 
+      match /robos/{registro} {
+        allow read: if request.auth != null && request.auth.uid == uid;
+        allow create: if request.auth != null && request.auth.uid == uid
+          && request.resource.data.propietarioUid == uid && request.resource.data.unidades is int
+          && request.resource.data.unidades > 0
+          && request.resource.data.stockResultante >= 0
+          && request.resource.data.stockAnterior - request.resource.data.unidades == request.resource.data.stockResultante;
+      }
+      match /avisosMoviles/{aviso} {
+        allow read: if request.auth != null && request.auth.uid == uid;
+      }
+      match /dispositivosMoviles/{dispositivo} {
+        allow read, delete: if request.auth != null && request.auth.uid == uid;
+        allow create, update: if request.auth != null && request.auth.uid == uid
+          && request.resource.data.keys().hasOnly(["token"])
+          && request.resource.data.token is string && request.resource.data.token.size() < 4096;
+      }
+
       match /productos/{productoId} {
 
         allow read: if request.auth != null
           && request.auth.uid == uid;
 
-        allow create: if request.auth != null
-          && request.auth.uid == uid
-          && request.resource.data.propietarioUid
-             == request.auth.uid;
-
-        allow update: if request.auth != null
-          && request.auth.uid == uid
-          && resource.data.propietarioUid
-             == request.auth.uid
-          && request.resource.data.propietarioUid
-             == request.auth.uid;
+        // El catálogo se guarda por la función transaccional que protege nombre y código.
+        allow create, update: if false;
 
         allow delete: if request.auth != null
           && request.auth.uid == uid

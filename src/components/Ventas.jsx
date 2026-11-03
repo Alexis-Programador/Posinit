@@ -1,3 +1,4 @@
+import { inicioDiaCaja, useDiaCaja, movimientosDelDia } from "./diaCaja";
 
   import {
     useEffect,
@@ -20,6 +21,8 @@
     db,
   } from "../firebase/firebaseConfig";
   
+  import { usePaginaNegocio, textoSobre } from "./paginaNegocio";
+  import "./paginaNegocio.css";
   import ModalCobro from "./ModalCobro";
   import { recuperarPlanMixto, limpiarPlanMixto } from "./cobroMixtoService";
   import ConfiguracionPosInitPay from "./ConfiguracionPosInitPay";
@@ -303,7 +306,9 @@
     ] = useState("");
   
     const montoRetiroInputRef = useRef(null);
-    const LIMITE_RETIRO = 3000;
+    const diaCaja = useDiaCaja();
+    const pagina = usePaginaNegocio(ownerUid);
+    const LIMITE_RETIRO = pagina.limiteCaja;
   
     const [camaraActiva, setCamaraActiva] = useState(true);
     const [pantallaCompleta, setPantallaCompleta] = useState(
@@ -538,14 +543,14 @@
   
     useEffect(() => {
       // Esperar a que Firestore entregue ventas, retiros y cortes.
-      if (!cajaListaParaAlertar) return;
+      if (!cajaListaParaAlertar || !pagina.listo) return;
   
       const saldo = Number(efectivoEnCaja);
       if (!Number.isFinite(saldo)) return;
       const saldoCentavos = Math.round(saldo * 100);
       const limiteCentavos = Math.round(LIMITE_RETIRO * 100);
   
-      if (saldoCentavos < limiteCentavos) {
+      if (saldoCentavos <= limiteCentavos) {
         // Después de un retiro, una nueva llegada al límite avisará otra vez.
         ultimoSaldoNotificadoRef.current = null;
         return;
@@ -580,7 +585,7 @@
       } catch (err) {
         console.warn("No se pudo mostrar la notificación de retiro:", err);
       }
-    }, [efectivoEnCaja, permisoNotificacion, cajaListaParaAlertar, cajaClave, avisosHabilitados]);
+    }, [efectivoEnCaja, permisoNotificacion, cajaListaParaAlertar, cajaClave, avisosHabilitados, LIMITE_RETIRO, pagina.listo]);
   
     const activarNotificaciones = async () => {
       if (!("Notification" in window)) { setError("Este navegador no admite notificaciones del sistema."); return; }
@@ -715,9 +720,7 @@
                     corte.fechaHora ??
                       0
                   )
-                ),
-              0
-            );
+                ), diaCaja - 1);
   
         const ventasEfectivo = ventasCaja
           .filter(venta => esDelCajero(venta) && Number(venta.fechaHora ?? 0) > ultimoCorte)
@@ -765,12 +768,7 @@
   
       const cancelarVentas =
         onSnapshot(
-          collection(
-            db,
-            "usuarios",
-            ownerUid,
-            "ventas"
-          ),
+          movimientosDelDia(db,ownerUid,"ventas",diaCaja),
   
           (snapshot) => {
             ventasCaja =
@@ -796,12 +794,7 @@
   
       const cancelarRetiros =
         onSnapshot(
-          collection(
-            db,
-            "usuarios",
-            ownerUid,
-            "retirosCaja"
-          ),
+          movimientosDelDia(db,ownerUid,"retirosCaja",diaCaja),
   
           (snapshot) => {
             retirosRecibidos = true;
@@ -833,12 +826,7 @@
   
       const cancelarCortes =
         onSnapshot(
-          collection(
-            db,
-            "usuarios",
-            ownerUid,
-            "cortesCaja"
-          ),
+          movimientosDelDia(db,ownerUid,"cortesCaja",diaCaja),
   
           (snapshot) => {
             cortesRecibidos = true;
@@ -876,7 +864,7 @@
     }, [
       ownerUid,
       usuario?.id,
-      usuario?.numeroUsuario,
+      usuario?.numeroUsuario, diaCaja,
     ]);
   
     // =========================================================
@@ -908,9 +896,9 @@
           setMensajeVenta("");
   
           const [ventasSnap, retirosSnap, cortesSnap] = await Promise.all([
-            getDocs(collection(db, "usuarios", ownerUid, "ventas")),
-            getDocs(collection(db, "usuarios", ownerUid, "retirosCaja")),
-            getDocs(collection(db, "usuarios", ownerUid, "cortesCaja")),
+            getDocs(movimientosDelDia(db,ownerUid,"ventas",inicioDiaCaja())),
+            getDocs(movimientosDelDia(db,ownerUid,"retirosCaja",inicioDiaCaja())),
+            getDocs(movimientosDelDia(db,ownerUid,"cortesCaja",inicioDiaCaja())),
           ]);
   
           const esDelCajero = (movimiento) => {
@@ -926,7 +914,7 @@
             .filter(esDelCajero)
             .reduce(
               (mayor, corte) => Math.max(mayor, Number(corte.fechaHora ?? 0)),
-              0
+              inicioDiaCaja() - 1
             );
   
           const totalVentasEfectivo = ventasSnap.docs
@@ -1379,7 +1367,8 @@
           if (event.key === "F1") {
             event.preventDefault();
             setMostrarHistorial(false);
-            setMostrarCorte(false);          }
+            setMostrarCorte(false);
+          }
           return;
         }
         if (event.key === "F9") {
@@ -3035,7 +3024,7 @@
     // =========================================================
   
     return (
-      <main className="ventas-pagina">
+      <main className="ventas-pagina pos-negocio" style={{"--pos-texto-panel":textoSobre("#ffffff",pagina.colorLetras),"--pos-f1":pagina.colorMenuF1,"--pos-texto-f1":textoSobre(pagina.colorMenuF1,pagina.colorLetras),"--pos-seleccion":pagina.colorSeleccion,"--pos-catalogo":pagina.colorFondo,"--pos-tarjeta":pagina.colorTarjetas,"--pos-letra-catalogo":textoSobre(pagina.colorFondo,pagina.colorLetras),"--pos-letra-tarjeta":textoSobre(pagina.colorTarjetas,pagina.colorLetras)}}>
 
   
         <style>{`
@@ -3145,8 +3134,9 @@
         {/* ENCABEZADO */}
   
         <header inert={ventasBloqueadas}
-          className="ventas-header"
+          className="ventas-header pos-header-configurable"
           style={{
+            "--pos-fondo": pagina.colorEncabezado, "--pos-texto": textoSobre(pagina.colorEncabezado,pagina.colorLetras),
             position:
               "sticky",
   
@@ -3168,7 +3158,7 @@
               {nombreEmpresa || "Punto de venta"}
             </p>
   
-            {false && efectivoEnCaja >= LIMITE_RETIRO && (
+            {false && efectivoEnCaja > LIMITE_RETIRO && (
               <div
                 style={{
                   marginTop: "6px",
@@ -3391,7 +3381,7 @@
                         productoSeleccionado
                           ? {
                               outline:
-                                "4px solid #2563eb",
+                                "4px solid var(--pos-seleccion)",
   
                               outlineOffset:
                                 "2px",
@@ -3707,7 +3697,8 @@
   
             <button
               type="button"
-              className="boton-cobrar"
+              className="boton-cobrar pos-cobro-configurable"
+              style={{ "--pos-fondo": pagina.colorCobrar, "--pos-texto": textoSobre(pagina.colorCobrar,pagina.colorLetras) }}
               disabled={
                 carrito.length ===
                   0 ||
@@ -3729,7 +3720,7 @@
             <span className="pos-ventas-avatar">{String(usuario?.nombre || "U").slice(0, 1).toUpperCase()}</span>
             <span><strong>{usuario?.nombre || "Usuario"}</strong><small>Usuario {usuario?.numeroUsuario || "—"}</small></span>
           </div>
-          {efectivoEnCaja >= LIMITE_RETIRO && (
+          {efectivoEnCaja > LIMITE_RETIRO && (
             <div className="pos-ventas-retiro" role="status"><span aria-hidden="true">⚠️</span><strong>Retiro requerido</strong><small>${efectivoEnCaja.toFixed(2)} en caja</small></div>
           )}
           <div className="pos-ventas-tiempo"><ClimaHoraPos actualizarToken={actualizacionClima} cancelarToken={cancelacionClima} /></div>
@@ -3780,7 +3771,7 @@
             }}
           >
   
-            <section
+            <section className="pos-menu-f1"
               style={{
                 width:
                   "min(440px, calc(100vw - 32px))",
@@ -5080,7 +5071,7 @@
                     style={{ width: "100%", marginTop: 10, padding: 12, border: "1px solid #cbd5e1", borderRadius: 10, background: "#fff", color: "#17243a", fontWeight: 700 }}>
                     Probar aviso de Windows
                   </button>
-                  <p style={{ fontSize: 12, color: "#64748b" }}>Los avisos de retiro se generan a partir de $3,000 MXN de efectivo en caja.</p>
+                  <p style={{ fontSize: 12, color: "#64748b" }}>Los avisos de retiro se generan al superar {LIMITE_RETIRO.toLocaleString("es-MX")} MXN de efectivo en caja.</p>
                 </>
               )}
               {configuracionFunciones === "ubicacion" && (
@@ -5149,4 +5140,4 @@
     );
   }
   
-  export default Ventas;
+  export default Ventas; 

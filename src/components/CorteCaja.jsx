@@ -1,10 +1,11 @@
+import { useDiaCaja, movimientosDelDia } from "./diaCaja";
 
 import { useEffect, useMemo, useState } from "react";
 
 import {
   collection,
   doc,
-  getDocs,
+  onSnapshot,
   query,
   serverTimestamp,
   setDoc,
@@ -58,6 +59,7 @@ function CorteCaja({
   onCerrar,
   onCorteRealizado,
 }) {
+  const diaCaja = useDiaCaja();
   const [ventas, setVentas] = useState([]);
   const [ultimoCorte, setUltimoCorte] = useState(null);
   const [efectivoContado, setEfectivoContado] = useState("");
@@ -70,94 +72,25 @@ function CorteCaja({
   const efectivoEsperado = Number(efectivoEnCaja || 0);
 
   useEffect(() => {
-    const cargarInformacion = async () => {
-      if (!ownerUid || !usuario?.numeroUsuario) {
-        setError("No se encontró la información del cajero.");
-        setCargando(false);
-        return;
-      }
-
-      try {
-        setCargando(true);
-        setError("");
-
-        const cortesRef = collection(
-          db,
-          "usuarios",
-          ownerUid,
-          "cortesCaja"
-        );
-
-        const consultaCortes = query(
-          cortesRef,
-          where("numeroUsuario", "==", usuario.numeroUsuario)
-        );
-
-        const cortesSnapshot = await getDocs(consultaCortes);
-
-        const cortes = cortesSnapshot.docs
-          .map((documento) => ({
-            documentoId: documento.id,
-            ...documento.data(),
-          }))
-          .sort(
-            (a, b) =>
-              Number(b.fechaHora ?? 0) -
-              Number(a.fechaHora ?? 0)
-          );
-
-        const corteAnterior =
-          cortes.length > 0 ? cortes[0] : null;
-
-        setUltimoCorte(corteAnterior);
-
-        const fechaUltimoCorte =
-          Number(corteAnterior?.fechaHora ?? 0);
-
-        const ventasRef = collection(
-          db,
-          "usuarios",
-          ownerUid,
-          "ventas"
-        );
-
-        const consultaVentas = query(
-          ventasRef,
-          where("numeroUsuario", "==", usuario.numeroUsuario)
-        );
-
-        const ventasSnapshot = await getDocs(consultaVentas);
-
-        const ventasPendientes = ventasSnapshot.docs
-          .map((documento) => ({
-            documentoId: documento.id,
-            ...documento.data(),
-          }))
-          .filter(
-            (venta) =>
-              Number(venta.fechaHora ?? 0) >
-              fechaUltimoCorte
-          )
-          .sort(
-            (a, b) =>
-              Number(a.fechaHora ?? 0) -
-              Number(b.fechaHora ?? 0)
-          );
-
-        setVentas(ventasPendientes);
-      } catch (err) {
-        console.error("Error cargando corte:", err);
-        setError(
-          err?.message ||
-            "No se pudo cargar la información del corte."
-        );
-      } finally {
-        setCargando(false);
-      }
+    setVentas([]);setUltimoCorte(null);
+    if(!ownerUid||!usuario?.numeroUsuario){setCargando(false);setError("No se encontró el cajero.");return;}
+    setCargando(true);setError("");
+    let cortes=null, lista=null;
+    const consulta=nombre=>movimientosDelDia(db,ownerUid,nombre,diaCaja);
+    const delCajero=m=>m.usuarioId!=null && usuario.id!=null ? String(m.usuarioId)===String(usuario.id) : String(m.numeroUsuario)===String(usuario.numeroUsuario);
+    const aplicar=()=>{
+      if(cortes===null||lista===null)return;
+      const ultimo=cortes.reduce((a,b)=>!a||Number(a.fechaHora)<Number(b.fechaHora)?b:a,null);
+      setUltimoCorte(ultimo);
+      setVentas(lista.filter(v=>Number(v.fechaHora)>Math.max(diaCaja-1,Number(ultimo?.fechaHora||0))).sort((a,b)=>a.fechaHora-b.fechaHora));
+      setCargando(false);
     };
-
-    cargarInformacion();
-  }, [ownerUid, usuario?.numeroUsuario]);
+    const datos=snap=>snap.docs.map(d=>({...d.data(),documentoId:d.id})).filter(delCajero);
+    const fallo=err=>{setError(err.message);setCargando(false);};
+    const stopCortes=onSnapshot(consulta("cortesCaja"),snap=>{cortes=datos(snap);aplicar();},fallo);
+    const stopVentas=onSnapshot(consulta("ventas"),snap=>{lista=datos(snap);aplicar();},fallo);
+    return ()=>{stopCortes();stopVentas();};
+  }, [ownerUid, usuario?.numeroUsuario, usuario?.id, diaCaja]);
 
   const resumen = useMemo(() => {
     let efectivo = 0;
@@ -274,9 +207,7 @@ function CorteCaja({
         fechaHora: fechaCorte,
         fechaServidor: serverTimestamp(),
 
-        desdeFecha: Number(
-          ultimoCorte?.fechaHora ?? 0
-        ),
+        desdeFecha: Math.max(diaCaja, Number(ultimoCorte?.fechaHora ?? 0)),
         hastaFecha: fechaCorte,
 
         // Lo que realmente debería existir AHORA en la caja:

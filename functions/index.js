@@ -407,3 +407,5 @@ exports.posPayCrearSolicitud = onCall(async (request) => {
   });
   return { pagoId: pagoRef.id, total };
 });
+
+Object.assign(exports, require("./gestionCaja"));

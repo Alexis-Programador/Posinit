@@ -9,7 +9,7 @@ import { QRCodeSVG } from "qrcode.react";
 
 import {
   collection,
-  getDocs,
+  onSnapshot,
 } from "firebase/firestore";
 
 import {
@@ -65,73 +65,13 @@ function HistorialVentas({
   // =========================================================
 
   useEffect(() => {
-    const cargarVentas =
-      async () => {
-        if (!ownerUid) {
-          setError(
-            "No se encontró el negocio."
-          );
-
-          setCargando(false);
-          return;
-        }
-
-        try {
-          setCargando(true);
-          setError("");
-
-          const ventasRef =
-            collection(
-              db,
-              "usuarios",
-              ownerUid,
-              "ventas"
-            );
-
-          const resultado =
-            await getDocs(
-              ventasRef
-            );
-
-          const lista =
-            resultado.docs
-              .map(
-                (documento) => ({
-                  documentoId:
-                    documento.id,
-
-                  ...documento.data(),
-                })
-              )
-              .sort(
-                (a, b) =>
-                  Number(
-                    b.fechaHora ??
-                      0
-                  ) -
-                  Number(
-                    a.fechaHora ??
-                      0
-                  )
-              );
-
-          setVentas(lista);
-        } catch (err) {
-          console.error(
-            "Error cargando historial:",
-            err
-          );
-
-          setError(
-            err?.message ||
-              "No se pudo cargar el historial de ventas."
-          );
-        } finally {
-          setCargando(false);
-        }
-      };
-
-    cargarVentas();
+    setVentas([]);
+    if (!ownerUid) {setError("No se encontró el negocio.");setCargando(false);return;}
+    setCargando(true); setError("");
+    return onSnapshot(collection(db,"usuarios",ownerUid,"ventas"),snap=>{
+      setVentas(snap.docs.map(d=>({...d.data(), documentoId:d.id})).sort((a,b)=>Number(b.fechaHora)-Number(a.fechaHora)));
+      setCargando(false);
+    },err=>{setError(err.message);setCargando(false);});
   }, [ownerUid]);
 
   // =========================================================
