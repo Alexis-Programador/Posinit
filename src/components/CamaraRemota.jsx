@@ -22,12 +22,14 @@ const SERVIDORES = {
 export default function CamaraRemota({
   ownerUid,
   onStream,
+  onCodigo,
   onCerrar,
 }) {
   const conexionRef = useRef(null);
   const cancelarRef = useRef(null);
   const sesionRef = useRef(null);
   const onStreamRef = useRef(onStream);
+  const onCodigoRef = useRef(onCodigo);
   const operacionRef = useRef(0);
   const streamPendienteRef = useRef(null);
 
@@ -38,6 +40,7 @@ export default function CamaraRemota({
   const [generando, setGenerando] = useState(false);
 
   onStreamRef.current = onStream;
+  onCodigoRef.current = onCodigo;
 
   async function desconectar() {
     operacionRef.current += 1;
@@ -121,6 +124,19 @@ export default function CamaraRemota({
 
       const pc = new RTCPeerConnection(SERVIDORES);
       conexionRef.current = pc;
+
+      const canalCodigos = pc.createDataChannel("pos-init-codigos", { ordered: true });
+      canalCodigos.onmessage = (evento) => {
+        if (operacion !== operacionRef.current) return;
+        try {
+          const mensaje = JSON.parse(evento.data);
+          if (mensaje?.tipo !== "codigo") return;
+          const codigo = String(mensaje.codigo ?? "").trim();
+          if (codigo && codigo.length <= 128) onCodigoRef.current?.(codigo);
+        } catch (error) {
+          console.warn("POS Init - Mensaje de escáner inválido:", error);
+        }
+      };
 
       pc.addTransceiver("video", {
         direction: "recvonly",
