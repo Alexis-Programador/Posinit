@@ -33,6 +33,14 @@ export function textoSobre(fondo, preferencia = "auto") {
   if (esColor(preferencia)) return preferencia;
   return (luz + 0.05) / 0.05 >= 1.05 / (luz + 0.05) ? "#000000" : "#FFFFFF";
 }
+export function esAmarillo(color) {
+  if (!esColor(color)) return false;
+  const [r,g,b]=[1,3,5].map(i=>parseInt(color.slice(i,i+2),16)/255);
+  const max=Math.max(r,g,b),min=Math.min(r,g,b),d=max-min;
+  if(d<0.15 || max<0.4)return false;
+  let h=max===r?((g-b)/d)%6:max===g?(b-r)/d+2:(r-g)/d+4;
+  h=(h*60+360)%360;return h>=38 && h<=70;
+}
 export function usePaginaNegocio(ownerUid) {
   const [estado, setEstado] = useState(null);
   useEffect(() => {
@@ -48,6 +56,8 @@ export function usePaginaNegocio(ownerUid) {
           if (campo === "limiteCaja") continue;
           if (esColor(datos[campo])) pagina[campo] = datos[campo];
         }
+        pagina.colorTarjetas=pagina.colorIconos;
+        pagina.colorCobrar=pagina.colorMenuF1;
         const limite = Number(datos.limiteCaja);
         if (typeof limite === "number" && Number.isFinite(limite) && limite > 0) {
           pagina.limiteCaja = limite;
