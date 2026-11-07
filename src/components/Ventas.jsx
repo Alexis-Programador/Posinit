@@ -1,3 +1,4 @@
+import { ENTORNO_PAGOS, API_PAGOS, sesionStripeValida } from "./pagosConfig";
 import {useOfertas} from "./useOfertas";
 import {aplicarOferta} from "./ofertasPrecio";
 import "./ofertas.css";
@@ -24,7 +25,7 @@ import { inicioDiaCaja, useDiaCaja, movimientosDelDia } from "./diaCaja";
     db,
   } from "../firebase/firebaseConfig";
   
-  import { usePaginaNegocio, textoSobre } from "./paginaNegocio";
+  import { usePaginaNegocio, textoSobre, esAmarillo } from "./paginaNegocio";
   import "./paginaNegocio.css";
   import ModalCobro from "./ModalCobro";
   import { recuperarPlanMixto, limpiarPlanMixto } from "./cobroMixtoService";
@@ -493,28 +494,30 @@ import { inicioDiaCaja, useDiaCaja, movimientosDelDia } from "./diaCaja";
       setPosicionConfig({ x: 0, y: 0 });
       setConfiguracionFunciones(tipo);
     };
-    useEffect(() => {
-      if (configuracionFunciones !== "camara") return;
-      let cancelado = false;
-      (async () => {
-        let stream;
-        try {
-          stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
-          const dispositivos = await navigator.mediaDevices.enumerateDevices();
-          const lista = dispositivos.filter((d) => d.kind === "videoinput");
-          if (!cancelado) {
-            setCamarasConfiguracion(lista);
-            setCamaraElegida((anterior) => lista.some((d) => d.deviceId === anterior) ? anterior : (lista[0]?.deviceId || ""));
-            if (!lista.length) setMensajeConfiguracion("No se encontraron cámaras.");
-          }
-        } catch (err) {
-          if (!cancelado) setMensajeConfiguracion(`No se pudo acceder a la cámara: ${err.message}`);
-        } finally {
-          stream?.getTracks().forEach((track) => track.stop());
-        }
-      })();
-      return () => { cancelado = true; };
-    }, [configuracionFunciones]);
+    const [solicitandoCamara,setSolicitandoCamara]=useState(false);
+    const [estadoCamara,setEstadoCamara]=useState("inactiva");
+    const [revisionCamara,setRevisionCamara]=useState(0);
+    const habilitarCamara=async()=>{
+      if(solicitandoCamara)return;
+      setSolicitandoCamara(true);setMensajeConfiguracion("");setCamaraActiva(false);
+      let stream;
+      try {
+        if(!navigator.mediaDevices?.getUserMedia)throw new Error("Abre la página mediante HTTPS para usar la cámara.");
+        stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:"environment"}},audio:false});
+        const devices=await navigator.mediaDevices.enumerateDevices();
+        const lista=devices.filter(d=>d.kind==="videoinput");setCamarasConfiguracion(lista);
+        const id=stream.getVideoTracks()[0]?.getSettings()?.deviceId || lista[0]?.deviceId || "";
+        stream.getTracks().forEach(t=>t.stop());stream=null;
+        setCamaraElegida(id);localStorage.setItem("pos-init-camara-preferida",id);
+        setModoCamara("usb");setRevisionCamara(v=>v+1);setCamaraActiva(true);setEstadoCamara("iniciando");
+        setMensajeConfiguracion("Permiso concedido. Iniciando cámara del dispositivo…");
+      }catch(e){setEstadoCamara("error");setMensajeConfiguracion(e.name==="NotAllowedError"?"Cámara bloqueada. Pulsa el icono junto a la dirección del navegador, permite Cámara y vuelve a pulsar Habilitar cámara del dispositivo.":e.message);}
+      finally{stream?.getTracks().forEach(t=>t.stop());setSolicitandoCamara(false);}
+    };
+    useEffect(()=>{if(configuracionFunciones!=="camara")return;let cancelado=false;
+      navigator.mediaDevices?.enumerateDevices().then(ds=>{if(!cancelado)setCamarasConfiguracion(ds.filter(d=>d.kind==="videoinput"));}).catch(()=>{});
+      return()=>{cancelado=true};
+    },[configuracionFunciones]);
     const probarNotificacion = () => {
       if (!avisosHabilitados) { setMensajeConfiguracion("Activa los avisos de POS Init primero."); return; }
       if (!("Notification" in window) || Notification.permission !== "granted") {
@@ -2257,7 +2260,7 @@ import { inicioDiaCaja, useDiaCaja, movimientosDelDia } from "./diaCaja";
                   if (pago.ownerUid !== ownerUid || pago.cobroMixtoId !== cobroMixtoId ||
                       cent(pago.totalVenta) !== cent(totalFinal) ||
                       cent(pago.total) !== parte.importeCentavos || pago.estado !== "pendiente" ||
-                      stripe.proveedor !== "stripe" || stripe.entorno !== "test" ||
+                      stripe.proveedor !== "stripe" || stripe.entorno !== ENTORNO_PAGOS ||
                       stripe.estado !== "paid" || stripe.moneda !== "mxn" ||
                       Number(stripe.importeCentavos) !== parte.importeCentavos ||
                       !stripe.sessionId || !stripe.eventId ||
@@ -2296,7 +2299,7 @@ import { inicioDiaCaja, useDiaCaja, movimientosDelDia } from "./diaCaja";
                 const stripe = pago.stripeConfirmacion || {};
                 if (pago.ownerUid !== ownerUid || pago.estado !== "pendiente" ||
                     Math.round(Number(pago.total) * 100) !== Math.round(totalFinal * 100) ||
-                    stripe.proveedor !== "stripe" || stripe.entorno !== "test" ||
+                    stripe.proveedor !== "stripe" || stripe.entorno !== ENTORNO_PAGOS ||
                     stripe.estado !== "paid" || stripe.moneda !== "mxn" ||
                     Number(stripe.importeCentavos) !== Math.round(totalFinal * 100) ||
                     !stripe.sessionId || !stripe.eventId) {
@@ -3032,7 +3035,7 @@ import { inicioDiaCaja, useDiaCaja, movimientosDelDia } from "./diaCaja";
     // =========================================================
   
     return (
-      <main className="ventas-pagina pos-negocio" style={{"--pos-texto-panel":textoSobre("#ffffff",pagina.colorLetras),"--pos-iconos":pagina.colorIconos,"--pos-tinta-iconos":textoSobre(pagina.colorIconos,pagina.tintaIconos),"--pos-f1":pagina.colorMenuF1,"--pos-texto-f1":textoSobre(pagina.colorMenuF1,pagina.tintaMenu),"--pos-seleccion":pagina.colorSeleccion,"--pos-catalogo":pagina.colorFondo,"--pos-tarjeta":pagina.colorTarjetas,"--pos-letra-catalogo":textoSobre(pagina.colorFondo,pagina.colorLetras),"--pos-letra-tarjeta":textoSobre(pagina.colorTarjetas,pagina.colorLetras)}}>
+      <main className="ventas-pagina pos-negocio" style={{"--pos-oferta":esAmarillo(pagina.colorIconos)?"#dc2626":"#ffcc00","--pos-texto-panel":textoSobre("#ffffff",pagina.colorLetras),"--pos-iconos":pagina.colorIconos,"--pos-tinta-iconos":textoSobre(pagina.colorIconos,pagina.tintaIconos),"--pos-f1":pagina.colorMenuF1,"--pos-texto-f1":textoSobre(pagina.colorMenuF1,pagina.tintaMenu),"--pos-seleccion":pagina.colorSeleccion,"--pos-catalogo":pagina.colorFondo,"--pos-tarjeta":pagina.colorTarjetas,"--pos-letra-catalogo":textoSobre(pagina.colorFondo,pagina.colorLetras),"--pos-letra-tarjeta":textoSobre(pagina.colorTarjetas,pagina.tintaIconos)}}>
 
   
         <style>{`
@@ -3712,7 +3715,7 @@ import { inicioDiaCaja, useDiaCaja, movimientosDelDia } from "./diaCaja";
             <button
               type="button"
               className="boton-cobrar pos-cobro-configurable"
-              style={{ "--pos-fondo": pagina.colorCobrar, "--pos-texto": textoSobre(pagina.colorCobrar,pagina.colorLetras) }}
+              style={{ "--pos-fondo": pagina.colorCobrar, "--pos-texto": textoSobre(pagina.colorCobrar,pagina.tintaMenu) }}
               disabled={
                 carrito.length ===
                   0 ||
@@ -5006,10 +5009,11 @@ import { inicioDiaCaja, useDiaCaja, movimientosDelDia } from "./diaCaja";
               {configuracionFunciones === "camara" && (
                 <>
                   <p style={{ marginBottom: 10 }}>Elige la cámara de esta computadora o conecta cualquier celular mediante QR.</p>
+                  <button type="button" disabled={solicitandoCamara} onClick={habilitarCamara} style={{width:"100%",padding:12,marginBottom:12,border:0,borderRadius:10,background:"#2563eb",color:"white",fontWeight:700}}>{solicitandoCamara?"Solicitando permiso…":"Habilitar cámara del dispositivo"}</button>
                   <label htmlFor="pos-camara-f5" style={{ display: "block", fontWeight: 700, marginBottom: 6 }}>Cámara de esta computadora</label>
                   <select id="pos-camara-f5" aria-label="Seleccionar cámara" value={camaraElegida} onChange={(e) => {
                     const id = e.target.value;
-                    setCamaraElegida(id);
+                    setCamaraElegida(id);setEstadoCamara("iniciando");
                     if (id) {
                       localStorage.setItem("pos-init-camara-preferida", id);
                       setModoCamara("usb");
@@ -5020,8 +5024,8 @@ import { inicioDiaCaja, useDiaCaja, movimientosDelDia } from "./diaCaja";
                     <option value="">Seleccionar cámara</option>
                     {camarasConfiguracion.map((camara, i) => <option key={camara.deviceId} value={camara.deviceId}>{camara.label || `Cámara ${i + 1}`}</option>)}
                   </select>
-                  <div role="status" style={{ marginTop: 10, padding: "10px 12px", borderRadius: 10, background: (modoCamara === "celular" && streamRemoto) || (modoCamara === "usb" && camaraElegida && camaraActiva) ? "#ecfdf5" : "#f1f5f9", color: "#1e293b", fontSize: 13 }}>
-                    {modoCamara === "celular" && streamRemoto ? "🟢 Celular conectado y cámara activa" : modoCamara === "usb" && camaraElegida && camaraActiva ? "🟢 Cámara seleccionada: " + (camarasConfiguracion.find((c) => c.deviceId === camaraElegida)?.label || "Cámara USB") : "⚪ Sin cámara activa"}
+                  <div role="status" style={{ marginTop: 10, padding: "10px 12px", borderRadius: 10, background: (modoCamara === "celular" && streamRemoto) || (modoCamara === "usb" && estadoCamara === "activa" && camaraActiva) ? "#ecfdf5" : "#f1f5f9", color: "#1e293b", fontSize: 13 }}>
+                    {modoCamara === "celular" && streamRemoto ? "🟢 Celular conectado y cámara activa" : modoCamara === "usb" && estadoCamara === "activa" && camaraActiva ? "🟢 Cámara seleccionada: " + (camarasConfiguracion.find((c) => c.deviceId === camaraElegida)?.label || "Cámara USB") : estadoCamara === "error" ? "🔴 Cámara no disponible: pulsa Habilitar cámara" : "⚪ Sin cámara activa"}
                   </div>
                   <button type="button" onClick={() => {
                     setVinculandoCelular(true);
