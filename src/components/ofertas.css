@@ -35,12 +35,12 @@
   text-overflow: clip !important;
 }
 .ventas-pagina.pos-negocio .catalogo .producto-card.producto-oferta {
-  border: 2px solid #ffcc00 !important;
+  border: 2px solid var(--pos-oferta, #ffcc00) !important;
   opacity: 1 !important;
   filter: none !important;
 }
 .ventas-pagina.pos-negocio .catalogo .producto-oferta .producto-info {
-  background: #ffcc00 !important;
+  background: var(--pos-oferta, #ffcc00) !important;
   color: #fff !important;
 }
 .ventas-pagina.pos-negocio .catalogo .producto-oferta .producto-info > strong,
@@ -58,7 +58,7 @@
   z-index: 1;
   padding: 4px 7px;
   border-radius: 7px;
-  background: #ffcc00 !important;
+  background: var(--pos-oferta, #ffcc00) !important;
   font-size: 10px;
   font-weight: 800;
   line-height: 1.2;
