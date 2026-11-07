@@ -37,6 +37,9 @@ jobs:
 
       # Compilar React y Vite
       - name: Compilar POS Init Web
+        env:
+          VITE_POS_PAY_MODE: test
+          VITE_POS_PAY_API_URL: https://pos-init-pay-api.alexis52gamer.workers.dev
         run: npm run build
 
       # Configurar GitHub Pages

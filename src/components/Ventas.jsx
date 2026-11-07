@@ -3933,6 +3933,7 @@ import { inicioDiaCaja, useDiaCaja, movimientosDelDia } from "./diaCaja";
                   </strong>
                 </button>
   
+                <button type="button" style={estiloOpcionMenu} onClick={() => window.open(window.location.pathname + '?connect=setup', '_blank', 'noopener,noreferrer')}><strong>💳 Conectar cuenta Stripe</strong><span>Solo el dueño. Se abre sin interrumpir la venta actual.</span></button>
                 <button type="button" style={estiloOpcionMenu} onClick={() => abrirConfiguracion("camara")}>
                   <strong>F5 · 📷 Configurar cámara</strong>
                   <span>Seleccionar webcam para escanear productos.</span>

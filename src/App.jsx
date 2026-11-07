@@ -1,3 +1,4 @@
+import StripeConnect from "./components/StripeConnect";
 import { useEffect, useState } from "react";
 import "./App.css";
 
@@ -687,6 +688,8 @@ function AppPrivada() {
 
 function App() {
   const parametros = new URLSearchParams(window.location.search);
+
+  if (parametros.has("connect")) return <StripeConnect />;
 
   // La ruta de cámara se abre sin pasar por el inicio de sesión del cajero.
   // Firestore sigue exigiendo autorización para acceder a la sesión.
