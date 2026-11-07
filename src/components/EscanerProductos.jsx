@@ -41,8 +41,10 @@ export default function EscanerProductos({
   integrado = false,
   activo = true,
   camaraId = "",
+  onEstado,
 }) {
   const videoRef = useRef(null);
+  const estadoRef=useRef(onEstado);estadoRef.current=onEstado;
   const productosRef = useRef(productos);
   const onProductoRef = useRef(onProducto);
 
@@ -107,7 +109,7 @@ export default function EscanerProductos({
   useEffect(() => {
     if (!activo) {
       setCamaraLista(false);
-      setMensaje("Cámara pausada");
+      setMensaje("Cámara pausada");estadoRef.current?.("inactiva");
       return;
     }
 
@@ -153,7 +155,7 @@ export default function EscanerProductos({
 
     async function iniciar() {
       try {
-        setMensaje("Iniciando cámara...");
+        setMensaje("Iniciando cámara...");estadoRef.current?.("iniciando");
         setCamaraLista(false);
 
         const video = videoRef.current;
@@ -201,11 +203,12 @@ export default function EscanerProductos({
           return;
         }
 
-        setCamaraLista(true);
+        setCamaraLista(true);estadoRef.current?.("activa");
         setMensaje("📷 Escáner activo. Enfoca el código.");
       } catch (error) {
         if (cancelado) return;
 
+        estadoRef.current?.("error");
         console.error(
           "POS Init - Error al iniciar cámara:",
           error
@@ -282,13 +285,15 @@ export default function EscanerProductos({
       <div style={{ position: "relative" }}>
         <video
           ref={videoRef}
+          className="pos-video-natural"
           autoPlay
           muted
           playsInline
           style={{
             width: "100%",
             height: 240,
-            objectFit: "cover",
+            objectFit: "contain",
+            transform: "none",
             background: "#020617",
             borderRadius: 10,
           }}
