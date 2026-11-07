@@ -1,3 +1,4 @@
+import { ENTORNO_PAGOS, API_PAGOS, sesionStripeValida } from "./pagosConfig";
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { collection, doc, onSnapshot, serverTimestamp, setDoc } from "firebase/firestore";
@@ -36,7 +37,7 @@ function ModalCobro({ total = 0, procesando = false, onCerrar, onConfirmar, owne
     return onSnapshot(doc(db, "pagosPosInit", pagoId), snap => {
       const datos = snap.exists() ? snap.data() : null;
       setEstadoPago(datos?.estado || "no_disponible");
-      setStripePagado(Boolean(datos?.ownerUid === ownerUid && datos?.metodo === "tarjeta" && datos?.estado === "pendiente" && Math.round(Number(datos?.total) * 100) === Math.round(Number(total) * 100) && datos?.stripeConfirmacion?.estado === "paid" && datos?.stripeConfirmacion?.proveedor === "stripe" && datos?.stripeConfirmacion?.entorno === "test" && datos?.stripeConfirmacion?.moneda === "mxn" && /^cs_test_[A-Za-z0-9_]+$/.test(datos?.stripeConfirmacion?.sessionId || "") && Boolean(datos?.stripeConfirmacion?.eventId) && Number(datos?.stripeConfirmacion?.importeCentavos) === Math.round(Number(total) * 100)));
+      setStripePagado(Boolean(datos?.ownerUid === ownerUid && datos?.metodo === "tarjeta" && datos?.estado === "pendiente" && Math.round(Number(datos?.total) * 100) === Math.round(Number(total) * 100) && datos?.stripeConfirmacion?.estado === "paid" && datos?.stripeConfirmacion?.proveedor === "stripe" && datos?.stripeConfirmacion?.entorno === ENTORNO_PAGOS && datos?.stripeConfirmacion?.moneda === "mxn" && sesionStripeValida(datos?.stripeConfirmacion?.sessionId) && Boolean(datos?.stripeConfirmacion?.eventId) && Number(datos?.stripeConfirmacion?.importeCentavos) === Math.round(Number(total) * 100)));
     }, err => setError("No se pudo consultar el pago: " + err.message));
   }, [pagoId, ownerUid, total]);
   useEffect(() => {
@@ -47,6 +48,7 @@ function ModalCobro({ total = 0, procesando = false, onCerrar, onConfirmar, owne
 
   const generarPago = async () => {
     if (creandoPago || pagoId) return;
+    if(metodoPago === "tarjeta" && !API_PAGOS){setError("Falta configurar el servidor de cobros reales. No se generó ningún cargo.");return;}
     if (!ownerUid) { setError("Debes iniciar sesión para generar un pago."); return; }
     if (metodoPago === "digital" && (!titular.trim() || !banco.trim() || !/^\d{18}$/.test(clabe.trim()))) {
       setError("Configura una cuenta SPEI válida para transferencias."); return;
@@ -205,7 +207,7 @@ function ModalCobro({ total = 0, procesando = false, onCerrar, onConfirmar, owne
           <button type="button" onClick={() => { if (!pagoId) { setMetodoPago("tarjeta"); setError(""); } }} disabled={Boolean(pagoId)} style={estiloBoton(metodoPago === "tarjeta")}>💳<br />Tarjeta QR</button>
         </div>
         <button type="button" onClick={() => { setMostrarDemoMixto(true); setAdvertenciaMixto(""); setError(""); }}
-          disabled={procesando || stripePagado || Boolean(pagoId)}
+          disabled={procesando || stripePagado || Boolean(pagoId) || ENTORNO_PAGOS === "live"}
           style={{ marginTop: 10, width: "100%", padding: 12, borderRadius: 12, border: "1px solid #93c5fd", background: "#eff6ff", color: "#1d4ed8", fontWeight: 800, cursor: "pointer" }}>
           💵 + 💳 Cobro combinado (integración en pruebas)
         </button>
@@ -221,7 +223,7 @@ function ModalCobro({ total = 0, procesando = false, onCerrar, onConfirmar, owne
           <strong>{metodoPago === "tarjeta" ? "💳 POS Init Pay — Tarjeta con QR" : "🏦 POS Init Pay — Transferencia SPEI"}</strong>
           {!pagoId ? <>
             <p style={{ fontSize: 12, margin: "7px 0" }}>
-              {metodoPago === "tarjeta" ? "Escanea el QR y paga con tarjeta mediante Stripe TEST. No requiere CLABE." : banco && titular && /^\d{18}$/.test(clabe) ?
+              {metodoPago === "tarjeta" ? (ENTORNO_PAGOS === "live" ? "Pago con tarjeta mediante Stripe. Espera la confirmación del proveedor." : "Modo de prueba: no uses una tarjeta real.") : banco && titular && /^\d{18}$/.test(clabe) ?
                 `Cuenta SPEI configurada: ${banco} · ${titular}` :
                 "La cuenta SPEI aún no está configurada. El propietario debe configurarla desde POS Init Pay."}
             </p>
