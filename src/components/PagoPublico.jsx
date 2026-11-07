@@ -1,3 +1,4 @@
+import { ENTORNO_PAGOS, API_PAGOS, sesionStripeValida } from "./pagosConfig";
 
 import { useEffect, useState } from "react";
 import { doc, onSnapshot } from "firebase/firestore";
@@ -31,7 +32,7 @@ const detalleTarjeta = (pago) => {
 
 
 // Stripe Checkout en modo de pruebas. No habilitar para cobros reales.
-const API_DEMO = "https://pos-init-pay-api.alexis52gamer.workers.dev";
+const API_DEMO = API_PAGOS;
 
 function urlCheckoutSegura(url) {
   try {
@@ -74,6 +75,7 @@ export default function PagoPublico({ id }) {
   // Stripe genera la sesión en Cloudflare; el navegador nunca conoce la clave privada.
   const iniciarStripe = async () => {
     if (stripeOcupado || pago?.estado !== "pendiente" || (pago?.metodo && pago.metodo !== "tarjeta")) return;
+    if(!API_PAGOS){setStripeMensaje("Falta configurar el servidor de pagos. No se realizó ningún cargo.");return;}
     setStripeOcupado(true);
     setStripeMensaje("");
     try {
@@ -84,7 +86,7 @@ export default function PagoPublico({ id }) {
       });
       const datos = await respuesta.json();
       const checkoutUrl = urlCheckoutSegura(datos.checkoutUrl);
-      if (!respuesta.ok || !datos.ok || !checkoutUrl || datos.entorno !== "test") {
+      if (!respuesta.ok || !datos.ok || !checkoutUrl || datos.entorno !== ENTORNO_PAGOS) {
         throw new Error(datos.mensaje || "No fue posible iniciar Stripe Checkout.");
       }
       // Redirigir en la misma pestaña evita bloqueos de ventanas emergentes.
@@ -100,7 +102,8 @@ export default function PagoPublico({ id }) {
     if (!/^[a-zA-Z0-9]{15,35}$/.test(id || "")) return;
     const sessionId = new URLSearchParams(window.location.search).get("stripe_session_id");
     if (!sessionId) return;
-    if (!/^cs_test_[a-zA-Z0-9_]+$/.test(sessionId) || sessionId.length > 255) {
+    if(!API_PAGOS){setStripeMensaje("Falta configurar el servidor de pagos.");return;}
+    if (!sesionStripeValida(sessionId) || sessionId.length > 255) {
       setStripeMensaje("Identificador de sesión de Stripe inválido.");
       return;
     }
@@ -119,9 +122,9 @@ export default function PagoPublico({ id }) {
           throw new Error(datos.mensaje || "No se pudo verificar el pago.");
         }
         if (cancelado) return;
-        if (datos.pagado === true && datos.estado === "paid" && datos.entorno === "test") {
+        if (datos.pagado === true && datos.estado === "paid" && datos.entorno === ENTORNO_PAGOS) {
           setStripePagado(true);
-          setStripeMensaje("✅ Stripe confirmó el pago de PRUEBA. Aún NO se ha registrado la venta en POS Init ni se ha actualizado el inventario.");
+          setStripeMensaje(ENTORNO_PAGOS === "live" ? "Stripe confirmó el pago. El cajero debe completar el registro de la venta; no vuelvas a pagar." : "Stripe confirmó la prueba. No se cobró dinero real.");
         } else {
           setStripeMensaje("Stripe todavía no confirma el pago. Si acabas de pagar, consulta el estado antes de intentar otra vez.");
         }
@@ -208,7 +211,7 @@ export default function PagoPublico({ id }) {
   const soloTarjeta = esMixto || pago?.metodo === "tarjeta";
   const soloSPEI = pago?.metodo === "transferencia" || (pago?.metodo !== "tarjeta" && Boolean(pago?.banco && pago?.titular && pago?.clabe));
   const tieneSPEI = !soloTarjeta && Boolean(pago?.banco && pago?.titular && pago?.clabe);
-  const stripeHabilitado = pendiente && totalValido && Number(pago?.total) >= 10 && !soloSPEI;
+  const stripeHabilitado = Boolean(API_PAGOS) && pendiente && totalValido && Number(pago?.total) >= 10 && !soloSPEI;
 
   return (
     <main style={{ minHeight: "100vh", padding: "30px 12px", boxSizing: "border-box", background: "linear-gradient(160deg,#091b3b 0%,#143a75 55%,#e9f1ff 55%)", fontFamily: "system-ui,-apple-system,Segoe UI,sans-serif", color: "#10213c" }}>
@@ -248,10 +251,10 @@ export default function PagoPublico({ id }) {
               <h3 style={{ margin: "0 0 8px", fontSize: 17 }}>Paga con tarjeta</h3>
               <p style={{ ...texto, marginTop: 0 }}>Tarjeta de débito o crédito. Las opciones disponibles dependen del proveedor de pagos.</p>
               <div style={{ padding: 12, marginBottom: 12, borderRadius: 10, background: "#eff6ff", border: "1px solid #93c5fd" }}>
-                <strong>🧪 Stripe Checkout — SOLO PRUEBAS</strong>
-                <p style={{ ...texto, margin: "7px 0" }}>Pago simulado con tarjeta mediante Stripe. No registra ventas ni modifica el inventario. No utilices tarjetas reales.</p>
+                <strong>{ENTORNO_PAGOS === "live" ? "Pago con tarjeta" : "Stripe — SOLO PRUEBAS"}</strong>
+                <p style={{ ...texto, margin: "7px 0" }}>{ENTORNO_PAGOS === "live" ? "Completa el pago en la página segura de Stripe. La venta requiere confirmación del proveedor." : "Pago simulado. No utilices tarjetas reales."}</p>
                 <button type="button" onClick={iniciarStripe} disabled={!stripeHabilitado || stripeOcupado || stripePagado} style={{ ...btn, background: stripeHabilitado && !stripePagado ? "#123d80" : "#cbd5e1", color: stripeHabilitado && !stripePagado ? "white" : "#475569", cursor: stripeHabilitado && !stripePagado ? "pointer" : "not-allowed" }}>
-                  {stripeOcupado ? "Conectando / verificando…" : stripePagado ? "Prueba verificada ✓" : `💳 Pagar ${moneda(pago.total)} con Stripe (prueba)`}
+                  {stripeOcupado ? "Conectando / verificando…" : stripePagado ? (ENTORNO_PAGOS === "live" ? "Pago verificado ✓" : "Prueba verificada ✓") : `💳 Pagar ${moneda(pago.total)} con Stripe ${ENTORNO_PAGOS === "live" ? "" : "(prueba)"}`}
                 </button>
                 {stripeMensaje && <p role="status" style={{ ...texto, marginBottom: 0, color: stripePagado ? "#166534" : "#475569" }}>{stripeMensaje}</p>}
               </div>
