@@ -1,0 +1,6 @@
+POS Init web 1.0.4
+Haz un respaldo antes de reemplazar los archivos, conservando estas rutas en tu repositorio web.
+Ejecuta npm.cmd run build, revisa los cambios y publica desde tu repositorio habitual. No se ha realizado git push.
+Las ofertas se crean en Android y se leen desde usuarios/UID/ofertas. No requieren Cloud Functions para mostrarse ni para cobrar en efectivo.
+El archivo functions/index.js incluye compatibilidad de precios para la función existente de SPEI; no se ha desplegado esa función. Firebase Spark no permite desplegar Cloud Functions.
+Las líneas del carrito conservan el precio al agregarlas. Para actualizar una oferta, retira el producto y vuelve a agregarlo.

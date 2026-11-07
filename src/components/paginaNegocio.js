@@ -11,6 +11,9 @@ const valoresIniciales = Object.freeze({
   colorCobrar: "#2563EB",
   colorFondo: "#F4F7FA",
   colorLetras: "auto",
+  tintaEncabezado: "auto",
+  tintaIconos: "auto",
+  tintaMenu: "auto",
   limiteCaja: 3000,
 });
 
@@ -27,11 +30,7 @@ function luminancia(valor) {
 
 export function textoSobre(fondo, preferencia = "auto") {
   const luz = luminancia(fondo);
-  if (esColor(preferencia)) {
-    const tinta = luminancia(preferencia);
-    const contraste = (Math.max(luz, tinta) + 0.05) / (Math.min(luz, tinta) + 0.05);
-    if (contraste >= 4.5) return preferencia;
-  }
+  if (esColor(preferencia)) return preferencia;
   return (luz + 0.05) / 0.05 >= 1.05 / (luz + 0.05) ? "#000000" : "#FFFFFF";
 }
 export function usePaginaNegocio(ownerUid) {

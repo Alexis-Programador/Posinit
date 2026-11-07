@@ -8,7 +8,125 @@ service cloud.firestore {
     // CUENTA PRINCIPAL DE POS INIT
     // =====================================================
 
+    match /soporteLimites/{uid} {
+      allow read: if request.auth != null && request.auth.uid == uid;
+      allow create, update: if request.auth != null && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['ultimaSolicitud','solicitudId'])
+        && request.resource.data.ultimaSolicitud == request.time
+        && request.resource.data.solicitudId is string
+        && (!exists(/databases/$(database)/documents/soporteLimites/$(uid))
+            || request.time >= resource.data.ultimaSolicitud + duration.value(24,'h'))
+        && getAfter(/databases/$(database)/documents/soporteSolicitudes/$(request.resource.data.solicitudId)).data.uid == uid
+        && getAfter(/databases/$(database)/documents/soporteSolicitudes/$(request.resource.data.solicitudId)).data.fecha == request.time;
+      allow delete: if false;
+    }
+    match /soporteSolicitudes/{ticket} {
+      allow read: if request.auth != null && resource.data.uid == request.auth.uid;
+      allow create: if request.auth != null
+        && request.resource.data.keys().hasOnly(['uid','nombre','correo','telefono','mensaje','fecha','estado'])
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.fecha == request.time
+        && request.resource.data.estado == 'pendiente'
+        && request.resource.data.nombre is string && request.resource.data.nombre.size() > 0 && request.resource.data.nombre.size() <= 150
+        && request.resource.data.correo is string && request.resource.data.correo.size() <= 254
+        && request.resource.data.telefono is string && request.resource.data.telefono.size() >= 7 && request.resource.data.telefono.size() <= 30
+        && request.resource.data.mensaje is string && request.resource.data.mensaje.size() >= 10 && request.resource.data.mensaje.size() <= 4000
+        && getAfter(/databases/$(database)/documents/soporteLimites/$(request.auth.uid)).data.solicitudId == ticket
+        && getAfter(/databases/$(database)/documents/soporteLimites/$(request.auth.uid)).data.ultimaSolicitud == request.time;
+      allow update, delete: if false;
+    }
+    match /directorioEmpresas/{correo} {
+      allow get: if request.auth != null;
+      allow list: if false;
+      allow create, update: if request.auth != null
+        && request.auth.token.get('email', '').lower() == correo
+        && request.resource.data.keys().hasOnly(['ownerUid', 'empresa'])
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.empresa is string && request.resource.data.empresa.size() > 0;
+      allow delete: if request.auth != null && resource.data.ownerUid == request.auth.uid;
+    }
     match /usuarios/{uid} {
+      function puede(apartado, accion) {
+        let miembro = /databases/$(database)/documents/usuarios/$(uid)/trabajadores/$(request.auth.uid);
+        return request.auth != null && exists(miembro) && get(miembro).data.activo == true
+          && get(/databases/$(database)/documents/usuarios/$(uid)/roles/$(get(miembro).data.rolId)).data.get("ver", {}).get(apartado, false) == true
+          && (accion == "ver" || get(/databases/$(database)/documents/usuarios/$(uid)/roles/$(get(miembro).data.rolId)).data.get("editar", {}).get(apartado, false) == true);
+      }
+      function miembroActivo() {
+        return request.auth != null && get(/databases/$(database)/documents/usuarios/$(uid)/trabajadores/$(request.auth.uid)).data.activo == true;
+      }
+      match /beneficios/premium {
+        allow read: if request.auth != null && (request.auth.uid == uid || miembroActivo());
+        allow create, update: if request.auth != null && request.auth.uid == uid
+          && request.resource.data.keys().hasOnly(['colores']) && request.resource.data.colores is bool
+          && request.resource.data.colores == getAfter(/databases/$(database)/documents/usuarios/$(uid)/configuracion/general).data.premiumColores;
+      }
+      match /perfilesPersonal/{actor} {
+        allow get: if request.auth != null && (request.auth.uid == uid || (request.auth.uid == actor && miembroActivo()));
+        allow list: if request.auth != null && request.auth.uid == uid;
+        allow create, update: if request.auth != null && request.auth.uid == actor && miembroActivo()
+          && request.resource.data.keys().hasOnly(['nombre','telefono','nombreEmergencia','telefonoEmergencia'])
+          && request.resource.data.nombre is string && request.resource.data.nombre.size() > 0 && request.resource.data.nombre.size() <= 100
+          && request.resource.data.telefono is string && request.resource.data.telefono.size() <= 30
+          && request.resource.data.nombreEmergencia is string && request.resource.data.nombreEmergencia.size() <= 100
+          && request.resource.data.telefonoEmergencia is string && request.resource.data.telefonoEmergencia.size() <= 30;
+      }
+      match /ofertas/{producto} {
+        allow read: if request.auth != null && (request.auth.uid == uid || puede('ofertas','ver') || puede('productos','ver') || puede('inventario','ver') || puede('etiquetas','ver'));
+        allow create, update: if request.auth != null && request.auth.uid == uid
+          && request.resource.data.keys().hasOnly(['productoId','precioOferta','activa','actualizadoEn'])
+          && request.resource.data.productoId == producto && request.resource.data.activa is bool
+          && request.resource.data.precioOferta is number && request.resource.data.precioOferta > 0
+          && request.resource.data.precioOferta < get(/databases/$(database)/documents/usuarios/$(uid)/productos/$(producto)).data.precioVenta
+          && request.resource.data.actualizadoEn == request.time;
+        allow delete: if request.auth != null && request.auth.uid == uid;
+      }
+      match /roles/{rolId} {
+        allow read: if request.auth != null && (request.auth.uid == uid ||
+          (get(/databases/$(database)/documents/usuarios/$(uid)/trabajadores/$(request.auth.uid)).data.activo == true &&
+           get(/databases/$(database)/documents/usuarios/$(uid)/trabajadores/$(request.auth.uid)).data.rolId == rolId));
+        allow create, update: if request.auth != null && request.auth.uid == uid
+          && request.resource.data.keys().hasOnly(["nombre", "ver", "editar"])
+          && request.resource.data.nombre is string && request.resource.data.nombre.size() > 0
+          && request.resource.data.ver is map && request.resource.data.editar is map;
+        allow delete: if request.auth != null && request.auth.uid == uid;
+      }
+      match /trabajadores/{empleado} {
+        allow get: if request.auth != null && (request.auth.uid == uid || request.auth.uid == empleado);
+        allow list: if request.auth != null && request.auth.uid == uid;
+        allow create, update: if request.auth != null && request.auth.uid == uid
+          && request.resource.data.keys().hasOnly(["uid", "nombre", "rolId", "activo"])
+          && request.resource.data.uid == empleado && request.resource.data.nombre is string
+          && request.resource.data.activo is bool
+          && exists(/databases/$(database)/documents/usuarios/$(uid)/roles/$(request.resource.data.rolId));
+        allow delete: if request.auth != null && request.auth.uid == uid;
+      }
+      match /solicitudesPersonal/{empleado} {
+        allow get: if request.auth != null && (request.auth.uid == uid || request.auth.uid == empleado);
+        allow list: if request.auth != null && request.auth.uid == uid;
+        allow create: if request.auth != null && request.auth.uid == empleado && empleado != uid
+          && request.resource.data.keys().hasOnly(["uid", "estado", "correoDueno", "empresa", "dispositivo", "fecha"])
+          && request.resource.data.uid == empleado && request.resource.data.estado == "pendiente"
+          && request.resource.data.dispositivo is string && request.resource.data.dispositivo.size() < 200
+          && get(/databases/$(database)/documents/directorioEmpresas/$(request.resource.data.correoDueno)).data.ownerUid == uid
+          && get(/databases/$(database)/documents/directorioEmpresas/$(request.resource.data.correoDueno)).data.empresa == request.resource.data.empresa;
+        allow update: if request.auth != null && request.auth.uid == uid
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["estado"])
+          && request.resource.data.estado in ["aceptada", "rechazada"];
+        allow delete: if request.auth != null && request.auth.uid == uid;
+      }
+      match /{apartado}/{documento} {
+        allow read: if apartado in ["productos","inventario","proveedores","ventas","registrosMercancia","cortesCaja","retirosCaja","robos"]
+          && puede(apartado, "ver");
+        allow update: if apartado == "inventario" && puede("inventario", "editar")
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["stockActual","stockMinimo","fechaActualizacion"])
+          && request.resource.data.stockActual is int && request.resource.data.stockActual >= 0
+          && request.resource.data.stockMinimo is int && request.resource.data.stockMinimo >= 0;
+        allow update: if apartado == "proveedores" && puede("proveedores", "editar")
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["nombre","empresa","telefono","codigoPais","fechaActualizacion"])
+          && request.resource.data.nombre is string && request.resource.data.nombre.size() > 0;
+      }
+
 
       allow create: if request.auth != null
         && request.auth.uid == uid;
@@ -104,16 +222,46 @@ service cloud.firestore {
           && request.resource.data.token is string && request.resource.data.token.size() < 4096;
       }
 
+      function revisionCatalogo() {
+        let ruta = /databases/$(database)/documents/usuarios/$(uid)/_control/catalogo;
+        return exists(ruta) ? get(ruta).data.get('revision', 0) : 0;
+      }
+      function catalogoActualizado() {
+        let ruta = /databases/$(database)/documents/usuarios/$(uid)/_control/catalogo;
+        return getAfter(ruta).data.revision == revisionCatalogo() + 1;
+      }
+      match /_control/catalogo {
+        allow read: if request.auth != null && (request.auth.uid == uid || puede("productos", "editar"));
+        allow create: if request.auth != null && (request.auth.uid == uid || puede("productos", "editar"))
+          && request.resource.data.keys().hasOnly(['revision', 'fechaActualizacion', 'propietarioUid'])
+          && request.resource.data.propietarioUid == uid && request.resource.data.revision == 1;
+        allow update: if request.auth != null && (request.auth.uid == uid || puede("productos", "editar"))
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['revision', 'fechaActualizacion', 'propietarioUid'])
+          && request.resource.data.propietarioUid == uid
+          && request.resource.data.revision == resource.data.get('revision', 0) + 1;
+      }
+
       match /productos/{productoId} {
 
         allow read: if request.auth != null
-          && request.auth.uid == uid;
+          && (request.auth.uid == uid || puede("productos", "editar") || puede("inventario", "ver") || puede("etiquetas", "ver") || puede("ofertas", "ver"));
 
-        // El catálogo se guarda por la función transaccional que protege nombre y código.
-        allow create, update: if false;
+        function productoValido() {
+          let p = request.resource.data;
+          return p.propietarioUid == uid && p.id is int && string(p.id) == productoId
+            && p.nombre is string && p.nombre.size() > 0
+            && p.codigoBarras is string && p.codigoBarras.size() > 0
+            && p.categoria is string && p.categoria.size() > 0
+            && p.precioVenta is number && p.precioVenta >= 0
+            && catalogoActualizado();
+        }
+        allow create: if request.auth != null && (request.auth.uid == uid || puede("productos", "editar")) && productoValido()
+          && getAfter(/databases/$(database)/documents/usuarios/$(uid)/inventario/$(productoId)).data.propietarioUid == uid;
+        allow update: if request.auth != null && (request.auth.uid == uid || puede("productos", "editar"))
+          && resource.data.propietarioUid == uid && productoValido();
 
         allow delete: if request.auth != null
-          && request.auth.uid == uid
+          && (request.auth.uid == uid || puede("productos", "editar"))
           && resource.data.propietarioUid
              == request.auth.uid;
       }
@@ -123,6 +271,12 @@ service cloud.firestore {
       // ===================================================
 
       match /inventario/{productoId} {
+        allow create: if puede("productos", "editar")
+          && request.resource.data.keys().hasOnly(["productoId","stockActual","stockMinimo","propietarioUid","fechaActualizacion"])
+          && request.resource.data.propietarioUid == uid
+          && string(request.resource.data.productoId) == productoId
+          && request.resource.data.stockActual == 0 && request.resource.data.stockMinimo == 0
+          && getAfter(/databases/$(database)/documents/usuarios/$(uid)/productos/$(productoId)).data.propietarioUid == uid;
 
         allow read: if request.auth != null
           && request.auth.uid == uid;
@@ -624,3 +778,4 @@ service cloud.firestore {
     }
   }
 }
+

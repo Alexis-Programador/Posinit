@@ -1,3 +1,6 @@
+import {useOfertas} from "./useOfertas";
+import {aplicarOferta} from "./ofertasPrecio";
+import "./ofertas.css";
 import { inicioDiaCaja, useDiaCaja, movimientosDelDia } from "./diaCaja";
 
   import {
@@ -195,7 +198,7 @@ import { inicioDiaCaja, useDiaCaja, movimientosDelDia } from "./diaCaja";
     // =========================================================
   
     const [
-      productos,
+      productosBase,
       setProductos,
     ] = useState([]);
   
@@ -308,6 +311,9 @@ import { inicioDiaCaja, useDiaCaja, movimientosDelDia } from "./diaCaja";
     const montoRetiroInputRef = useRef(null);
     const diaCaja = useDiaCaja();
     const pagina = usePaginaNegocio(ownerUid);
+    const ofertas = useOfertas(ownerUid);
+    const productos = useMemo(()=>productosBase.map(p=>aplicarOferta(p,ofertas.mapa[String(p.documentoId??p.id)])),[productosBase,ofertas.mapa]);
+    const [soloOfertas,setSoloOfertas]=useState(false);
     const LIMITE_RETIRO = pagina.limiteCaja;
   
     const [camaraActiva, setCamaraActiva] = useState(true);
@@ -1492,7 +1498,7 @@ import { inicioDiaCaja, useDiaCaja, movimientosDelDia } from "./diaCaja";
     // Orden alfabético estable, incluyendo nombres con acentos.
     const productosFiltrados = useMemo(() => {
       const texto = busqueda.trim().toLocaleLowerCase("es-MX");
-      return productos
+      return productos.filter(p=>!soloOfertas||p.enOferta)
         .filter((producto) => {
           if (!texto) return true;
           return [producto.nombre, producto.codigoBarras, producto.categoria]
@@ -1504,7 +1510,7 @@ import { inicioDiaCaja, useDiaCaja, movimientosDelDia } from "./diaCaja";
             numeric: true,
           })
         );
-    }, [productos, busqueda]);
+    }, [productos, busqueda, soloOfertas]);
   
     // =========================================================
     // STOCK
@@ -1820,6 +1826,8 @@ import { inicioDiaCaja, useDiaCaja, movimientosDelDia } from "./diaCaja";
     const agregarProducto = (
       producto
     ) => {
+      if(!ofertas.listo || ofertas.error) { setError(ofertas.error || "Espera a que se carguen las promociones."); return; }
+
       setMensajeVenta("");
       setError("");
   
@@ -3024,7 +3032,7 @@ import { inicioDiaCaja, useDiaCaja, movimientosDelDia } from "./diaCaja";
     // =========================================================
   
     return (
-      <main className="ventas-pagina pos-negocio" style={{"--pos-texto-panel":textoSobre("#ffffff",pagina.colorLetras),"--pos-f1":pagina.colorMenuF1,"--pos-texto-f1":textoSobre(pagina.colorMenuF1,pagina.colorLetras),"--pos-seleccion":pagina.colorSeleccion,"--pos-catalogo":pagina.colorFondo,"--pos-tarjeta":pagina.colorTarjetas,"--pos-letra-catalogo":textoSobre(pagina.colorFondo,pagina.colorLetras),"--pos-letra-tarjeta":textoSobre(pagina.colorTarjetas,pagina.colorLetras)}}>
+      <main className="ventas-pagina pos-negocio" style={{"--pos-texto-panel":textoSobre("#ffffff",pagina.colorLetras),"--pos-iconos":pagina.colorIconos,"--pos-tinta-iconos":textoSobre(pagina.colorIconos,pagina.tintaIconos),"--pos-f1":pagina.colorMenuF1,"--pos-texto-f1":textoSobre(pagina.colorMenuF1,pagina.tintaMenu),"--pos-seleccion":pagina.colorSeleccion,"--pos-catalogo":pagina.colorFondo,"--pos-tarjeta":pagina.colorTarjetas,"--pos-letra-catalogo":textoSobre(pagina.colorFondo,pagina.colorLetras),"--pos-letra-tarjeta":textoSobre(pagina.colorTarjetas,pagina.colorLetras)}}>
 
   
         <style>{`
@@ -3136,7 +3144,7 @@ import { inicioDiaCaja, useDiaCaja, movimientosDelDia } from "./diaCaja";
         <header inert={ventasBloqueadas}
           className="ventas-header pos-header-configurable"
           style={{
-            "--pos-fondo": pagina.colorEncabezado, "--pos-texto": textoSobre(pagina.colorEncabezado,pagina.colorLetras),
+            "--pos-fondo": pagina.colorEncabezado, "--pos-texto": textoSobre(pagina.colorEncabezado,pagina.tintaEncabezado),
             position:
               "sticky",
   
@@ -3181,6 +3189,12 @@ import { inicioDiaCaja, useDiaCaja, movimientosDelDia } from "./diaCaja";
   
           </div>
   
+          <section className="promociones-banner" aria-label="Promociones">
+            <div><span className="oferta-insignia">PROMOCIONES</span><h2>Más ahorro en cada compra</h2><p>{productos.filter(p=>p.enOferta).length} ofertas activas en tu negocio.</p>
+            <small>La rebaja se aplica al agregar el producto. Para actualizar un precio del carrito, retira el artículo y agrégalo nuevamente.</small></div>
+            <button type="button" onClick={()=>setSoloOfertas(v=>!v)} aria-pressed={soloOfertas}>{soloOfertas?"Ver todos los productos":"Ver ofertas"}</button>
+          </section>
+          {ofertas.error && <p role="alert" className="oferta-error">{ofertas.error}</p>}
           <div className="pos-ventas-herramientas">
             <div className="pos-ventas-buscador">
               <input
@@ -3392,9 +3406,7 @@ import { inicioDiaCaja, useDiaCaja, movimientosDelDia } from "./diaCaja";
                           : undefined
                       }
                       className={
-                        sinStock
-                          ? "producto-card producto-sin-stock"
-                          : "producto-card"
+                        (sinStock ? "producto-card producto-sin-stock" : "producto-card") + (producto.enOferta ? " producto-oferta" : "")
                       }
                       disabled={
                         sinStock
@@ -3427,6 +3439,7 @@ import { inicioDiaCaja, useDiaCaja, movimientosDelDia } from "./diaCaja";
                       </div>
   
                       <div className="producto-info">
+                        {producto.enOferta && <span className="oferta-insignia">OFERTA · -{producto.descuento}%</span>}
   
                         <strong>
                           {producto.nombre ||
@@ -3442,6 +3455,7 @@ import { inicioDiaCaja, useDiaCaja, movimientosDelDia } from "./diaCaja";
   
                         <div className="producto-precio-stock">
   
+                          {producto.enOferta && <del className="oferta-anterior">${producto.precioOriginal.toFixed(2)}</del>}
                           <span className="producto-precio">
   
                             $

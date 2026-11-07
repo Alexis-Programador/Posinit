@@ -383,7 +383,15 @@ exports.posPayCrearSolicitud = onCall(async (request) => {
     const snap = await db.doc(`usuarios/${ownerUid}/productos/${id}`).get();
     if (!snap.exists) throw new HttpsError("not-found", "Un producto ya no existe.");
     const producto = snap.data();
-    const precio = Number(producto.precioVenta);
+    const ofertaSnap = await db.doc(`usuarios/${ownerUid}/ofertas/${id}`).get();
+    const oferta = ofertaSnap.data();
+    const base = Number(producto.precioVenta);
+    const rebaja = oferta?.precioOferta;
+    const aplica = oferta?.activa === true && typeof rebaja === "number" && Number.isFinite(rebaja) && rebaja > 0 && rebaja < base && Math.abs(rebaja * 100 - Math.round(rebaja * 100)) < 0.00001;
+    const precio = aplica ? rebaja : base;
+    if (articulo.precio != null && Math.round(Number(articulo.precio) * 100) !== Math.round(precio * 100)) {
+      throw new HttpsError("failed-precondition", "El precio o la promoción cambió. Actualiza el carrito antes de pagar.");
+    }
     const precioCentavos = Math.round(precio * 100);
     if (!Number.isFinite(precio) || precio < 0 || !Number.isSafeInteger(precioCentavos) ||
         Math.abs(precio * 100 - precioCentavos) > 0.00001) {

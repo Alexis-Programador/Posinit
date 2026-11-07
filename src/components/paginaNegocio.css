@@ -36,3 +36,5 @@
 }
 
 .ventas-pagina.pos-negocio .carrito :is(.carrito-encabezado h2,.carrito-encabezado p,.carrito-item-info h3,.carrito-item-info p,.carrito-subtotal) {color:var(--pos-texto-panel) !important;}
+
+.ventas-pagina.pos-negocio .pos-menu-f1 button svg {color:var(--pos-iconos) !important;}
