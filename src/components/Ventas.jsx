@@ -3439,7 +3439,7 @@ import { inicioDiaCaja, useDiaCaja, movimientosDelDia } from "./diaCaja";
                       </div>
   
                       <div className="producto-info">
-                        {producto.enOferta && <span className="oferta-insignia">OFERTA · -{producto.descuento}%</span>}
+                        {producto.enOferta && <span className="oferta-insignia">OFERTA {producto.descuento}%</span>}
   
                         <strong>
                           {producto.nombre ||
