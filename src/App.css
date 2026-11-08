@@ -5499,3 +5499,6 @@ body:has(.pagina-pin-seguro),
   max-width: 100% !important;
   max-height: 100% !important;
 }
+
+/* Orientación solicitada: invertir únicamente la vista previa. */
+.ventas-pagina .pos-camara-visor video { transform: scaleX(-1) !important; }
