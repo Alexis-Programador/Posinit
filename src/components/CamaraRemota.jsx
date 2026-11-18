@@ -9,7 +9,7 @@ import {
   serverTimestamp,
 } from "firebase/firestore";
 
-import { db } from "../firebase/firebaseConfig";
+import { auth, db } from "../firebase/firebaseConfig";
 import { QRCodeSVG } from "qrcode.react";
 
 const SERVIDORES = {
@@ -89,6 +89,19 @@ export default function CamaraRemota({
   async function conectar() {
     if (!ownerUid) {
       setEstado("No se identificó el negocio.");
+      return;
+    }
+
+    // Firestore solo permite crear sesiones a la cuenta propietaria.
+    // El PIN del cajero no sustituye la autenticación de Firebase.
+    const usuarioFirebase = auth.currentUser;
+    if (!usuarioFirebase) {
+      setEstado("Inicia sesión con la cuenta del negocio para conectar la cámara.");
+      return;
+    }
+    if (usuarioFirebase.uid !== ownerUid) {
+      setEstado("La caja pertenece a otra cuenta. Reactiva la caja con la cuenta propietaria.");
+      console.warn("POS Init: la cuenta Firebase no coincide con el propietario de la caja.");
       return;
     }
 
@@ -221,7 +234,9 @@ export default function CamaraRemota({
         },
         respuesta: null,
         creadoEn: serverTimestamp(),
-        venceEn: Date.now() + 5 * 60 * 1000,
+        // Reserva 30 segundos de tolerancia para el reloj del dispositivo.
+        // Firestore exige que venceEn no supere el tiempo del servidor + 5 minutos.
+        venceEn: Date.now() + 4.5 * 60 * 1000,
       });
 
       if (operacion !== operacionRef.current) return;
