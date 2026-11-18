@@ -150,7 +150,13 @@ service cloud.firestore {
             && request.auth.uid == uid;
         }
 
-        allow get: if esPropietarioCamara();
+        // El telefono que escanea el QR no inicia sesion en Firebase Auth.
+        // El ID aleatorio del documento es el secreto temporal del enlace.
+        // La lectura solo es posible durante los 5 minutos de vigencia.
+        allow get: if esPropietarioCamara()
+          || (resource.data.ownerUid == uid
+              && resource.data.venceEn is number
+              && resource.data.venceEn > request.time.toMillis());
 
         allow list: if false;
 
@@ -183,9 +189,12 @@ service cloud.firestore {
           && request.resource.data.venceEn
              <= request.time.toMillis() + 300000;
 
-        allow update: if esPropietarioCamara()
-          && resource.data.ownerUid == uid
+        // Solo se permite responder UNA vez a una sesion vigente.
+        // El movil no puede modificar el propietario, oferta ni vencimiento.
+        allow update: if resource.data.ownerUid == uid
           && resource.data.estado == "esperando"
+          && resource.data.respuesta == null
+          && resource.data.venceEn is number
           && resource.data.venceEn > request.time.toMillis()
           && request.resource.data.diff(resource.data)
              .affectedKeys().hasOnly([
@@ -194,8 +203,11 @@ service cloud.firestore {
              ])
           && request.resource.data.estado == "conectando"
           && request.resource.data.respuesta is map
+          && request.resource.data.respuesta.keys().hasOnly(["type", "sdp"])
           && request.resource.data.respuesta.type == "answer"
-          && request.resource.data.respuesta.sdp is string;
+          && request.resource.data.respuesta.sdp is string
+          && request.resource.data.respuesta.sdp.size() > 0
+          && request.resource.data.respuesta.sdp.size() <= 100000;
 
         allow delete: if esPropietarioCamara();
       }
