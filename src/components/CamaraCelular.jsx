@@ -1211,6 +1211,8 @@ export default function CamaraCelular() {
 
     setIniciando(true);
 
+    let etapaConexion = "leer la sesión del QR";
+
     try {
       limpiarConexion();
 
@@ -1259,9 +1261,19 @@ export default function CamaraCelular() {
         );
       }
 
+      if (datos.ownerUid !== ownerUid) {
+        throw new Error("El QR no corresponde al negocio. Genera un nuevo QR.");
+      }
+
+      if (datos.estado !== "esperando" || datos.respuesta != null) {
+        throw new Error("Esta conexión ya se utilizó. Genera un nuevo QR.");
+      }
+
       // ===============================================
       // ABRIR CÁMARA TRASERA
       // ===============================================
+
+      etapaConexion = "abrir la cámara del celular";
 
       const stream =
         await navigator.mediaDevices
@@ -1391,6 +1403,8 @@ export default function CamaraCelular() {
         return;
       }
 
+      etapaConexion = "enviar la respuesta a Firebase";
+
       await updateDoc(
         referencia,
         {
@@ -1450,13 +1464,26 @@ export default function CamaraCelular() {
         );
       }
     } catch (error) {
+      console.error("POS Init - Cámara celular", {
+        etapa: etapaConexion,
+        codigo: error?.code || error?.name,
+        mensaje: error?.message,
+      });
       limpiarConexion();
-
       setConectado(false);
 
-      setEstado(
-        `Error: ${error.message}`
-      );
+      const esFirestore = error?.code === "permission-denied";
+      const esCamara = error?.name === "NotAllowedError"
+        || error?.name === "PermissionDeniedError";
+      const detalle = esFirestore
+        ? (etapaConexion === "leer la sesión del QR"
+            ? "Firebase rechazó leer la sesión QR. Genera otro QR y comprueba que las reglas de sesionesCamara estén publicadas."
+            : "Firebase rechazó la respuesta. La sesión puede estar vencida o ya utilizada; genera otro QR.")
+        : esCamara
+          ? "Debes permitir el acceso a la cámara desde los ajustes del navegador del celular."
+          : (error?.message || "Error desconocido");
+
+      setEstado(`Error al ${etapaConexion}: ${detalle}`);
     } finally {
       iniciandoRef.current = false;
 
