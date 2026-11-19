@@ -18,7 +18,7 @@ function Section({ title, subtitle, children }) {
 function Bars({ title, rows, format = String }) {
   const sorted = [...rows].sort((a,b)=>b.value-a.value).slice(0,8);
   const max = Math.max(1,...sorted.map(x=>x.value));
-  return <Section title={title} subtitle={sorted.length ? 'Datos calculados con el historial de Firebase' : 'Sin movimientos en el periodo'}>
+  return <Section title={title} subtitle={sorted.length ? 'Datos calculados con el historial de ventas' : 'Sin movimientos en el periodo'}>
     <div className="metric-bars">
       {sorted.map((v,i)=><div className="metric-row" key={v.label+'-'+i}>
         <div className="metric-label"><span>{v.label}</span><strong>{format(v.value)}</strong></div>
