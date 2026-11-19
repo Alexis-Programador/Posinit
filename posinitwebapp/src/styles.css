@@ -106,3 +106,71 @@
 
 .field select,.field textarea{width:100%;padding:12px 13px;border:1px solid #d8e2ef;border-radius:9px;font-size:14px;background:white;color:#203a5c;resize:vertical}
 .web-dark .field select,.web-dark .field textarea{background:#293b52;color:#f2f7ff;border-color:#48617e}
+
+
+/* Catálogo y promociones con diseño equivalente a la app móvil */
+.product-editor{width:min(780px,95vw);max-width:780px}
+.product-editor .panel-header p{margin:6px 0 0;color:#6d7d97;font-size:12px}
+.product-editor-layout{display:grid;grid-template-columns:minmax(180px,.86fr) minmax(230px,1fr);gap:22px;margin-top:15px}
+.product-editor .form-column{display:flex;flex-direction:column;gap:7px}
+.product-editor .field{display:flex;flex-direction:column;gap:6px}
+.product-editor .field input,.product-editor .field select{background:#fff}
+.photo-column{display:flex;flex-direction:column;gap:11px;min-width:0}
+.photo-preview{width:100%;aspect-ratio:1/1;min-height:205px;background:#eef3fa;border:2px dashed #c7d5e8;display:grid;place-items:center;overflow:hidden;border-radius:14px}
+.photo-preview img{width:100%;height:100%;object-fit:contain}
+.photo-placeholder{display:flex;align-items:center;justify-content:center;flex-direction:column;text-align:center;gap:10px;padding:16px;color:#667c98}
+.photo-placeholder span{font-size:49px}
+.photo-placeholder strong{font-size:14px}
+.photo-placeholder small{font-size:11px}
+.photo-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.photo-actions .btn{font-size:12px;white-space:normal;padding:10px 8px}
+.visually-hidden{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important;border:0!important}
+.inline-category{display:flex;gap:8px;align-items:stretch;margin-bottom:9px}
+.inline-category input{flex:1;min-width:0;padding:10px;border:1px solid #d8e2f0;border-radius:10px}
+.inline-category .btn{white-space:nowrap}
+.inline-field-error{color:#bb2c2c;font-size:12px;margin:0 0 6px}
+.product-editor-actions{flex-wrap:wrap;border-top:1px solid #e5ecf4;padding-top:13px}
+.product-editor-actions .danger-button{margin-right:auto;color:#b42318;border:1px solid #f1c9c5;background:#fff2f1}
+.category-create{display:flex;align-items:flex-end;gap:12px;margin:0 0 22px}
+.category-create .field{flex:1;max-width:465px}
+.category-create .btn{height:43px}
+.category-live{background:#f8fbff}
+.category-live .btn{margin-top:7px;width:max-content}
+.offer-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,265px),1fr));gap:17px;margin-top:10px}
+.offer-card{border:1px solid #e2eaf4;border-radius:17px;padding:17px;background:#f9fbff;display:flex;flex-direction:column;min-height:245px;min-width:0;box-shadow:0 4px 18px #122e5208}
+.offer-card.has-offer{border:2px solid #f6c034;background:linear-gradient(145deg,#fffdf4,#fff8e7)}
+.offer-head{display:flex;align-items:center;gap:10px;min-height:60px;flex-wrap:wrap}
+.offer-head img,.offer-placeholder{width:58px;height:58px;border-radius:10px;object-fit:cover;background:#edf1f9;display:grid;place-items:center;font-size:30px}
+.offer-head>div{flex:1;min-width:105px}
+.offer-head>div strong{font-size:15px;display:block;overflow-wrap:anywhere;color:#162e52}
+.offer-head small{display:block;font-size:11px;color:#64748b;margin-top:5px}
+.offer-badge{padding:5px 8px;background:#f5c518;color:#382b00;font-weight:800;font-size:11px;border-radius:7px;white-space:nowrap}
+.offer-base-label{font-size:12px;color:#667792;margin:14px 0 4px}
+.offer-normal{font-size:22px;font-weight:800;color:#163b7b;margin:0}
+.offer-strike{font-size:15px;text-decoration:line-through;color:#8c94a5;margin:0}
+.offer-new-price{font-size:28px;color:#13643e;font-weight:900;margin:8px 0 4px}
+.offer-savings{font-size:12px;font-weight:800;color:#17864e;margin:0 0 14px}
+.offer-actions{margin-top:auto;display:flex;flex-wrap:wrap;gap:8px;padding-top:17px}
+.offer-actions .btn{flex:1;min-width:115px;font-size:12px}
+.offer-actions .danger-button{color:#b42318;border:1px solid #eab6b1;background:#fff5f3}
+.sales-chart{width:100%;overflow-x:auto;min-height:250px}
+.sales-chart svg{display:block;width:100%;min-width:550px;height:250px;overflow:visible}
+.mobile-palette{display:grid;grid-template-columns:repeat(auto-fill,minmax(105px,1fr));gap:13px;margin:14px 0 22px}
+.palette-choice{background:#fff;border:2px solid #e0e8f4;border-radius:15px;min-height:114px;padding:10px;display:flex;flex-direction:column;gap:8px;text-align:left;position:relative}
+.palette-choice.active{border-color:var(--accent,#1559d6);box-shadow:0 0 0 2px #a6caff}
+.palette-choice:disabled{opacity:.55;cursor:not-allowed}
+.palette-color{width:100%;height:52px;border-radius:9px;border:1px solid #bdc6d3;display:block}
+.palette-choice strong{font-size:12px;color:#203553}
+.palette-choice small{color:#248451;font-size:10px;font-weight:800}
+.lock-overlay{position:absolute;top:24px;right:17px;font-size:20px;filter:drop-shadow(0 1px 3px #1116)}
+@media(max-width:670px){
+  .product-editor-layout{grid-template-columns:1fr}
+  .photo-preview{min-height:170px;max-height:240px;aspect-ratio:2/1}
+  .photo-actions{display:flex}
+  .photo-actions .btn{flex:1}
+  .category-create{flex-direction:column;align-items:stretch}
+  .category-create .field{max-width:none;width:100%}
+  .offer-grid{grid-template-columns:1fr}
+  .product-editor-actions .btn{flex:1}
+  .product-editor-actions .danger-button{flex-basis:100%}
+}
