@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import {
-  collection, doc, getDoc, onSnapshot, runTransaction,
+  collection, doc, getDoc, getDocFromServer, getDocsFromServer,
+  deleteDoc, onSnapshot, runTransaction,
   serverTimestamp, setDoc, updateDoc,
 } from 'firebase/firestore';
 import { db, auth } from './firebase';
@@ -42,46 +43,98 @@ const num = v => Number(v ?? 0);
 
 // Respeta el modelo Android de IDs numéricos y la revisión atómica del catálogo
 // exigida por las reglas Firestore del proyecto.
+export function normalizeCatalogValue(value) {
+  return String(value ?? '').normalize('NFKC').trim().replace(/\s+/g, ' ').toLocaleLowerCase('es-MX');
+}
+export async function categoryId(name) {
+  const normalized = normalizeCatalogValue(name);
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(normalized));
+  return Array.from(new Uint8Array(digest), b => b.toString(16).padStart(2, '0')).join('');
+}
+
+export async function saveCategory(uid, name) {
+  assertOwner(uid);
+  const clean = String(name || '').normalize('NFKC').trim().replace(/\s+/g, ' ');
+  if (!clean || clean.length > 80) throw new Error('Escribe una categoría de 1 a 80 caracteres.');
+  const id = await categoryId(clean);
+  const ref = doc(db, 'usuarios', uid, 'categorias', id);
+  const existing = await getDocFromServer(ref);
+  if (existing.exists()) throw new Error('Esta categoría ya está registrada.');
+  await setDoc(ref, { nombre: clean, propietarioUid: uid, fechaActualizacion: Date.now() });
+}
+export async function deleteCategory(uid, row) {
+  assertOwner(uid);
+  const categoria = String(row.nombre || '');
+  const catalog = await getDocsFromServer(collection(db, 'usuarios', uid, 'productos'));
+  if (catalog.docs.some(p => normalizeCatalogValue(p.data().categoria) === normalizeCatalogValue(categoria))) {
+    throw new Error('Esta categoría tiene productos. Cambia primero su categoría.');
+  }
+  const id = await categoryId(categoria);
+  await deleteDoc(doc(db, 'usuarios', uid, 'categorias', id));
+}
 export async function saveProduct(uid, input, existing = null) {
   assertOwner(uid);
   const id = existing?.docId || newNumericId();
-  const nombre = safeText(input.nombre), codigoBarras = safeText(input.codigoBarras, 90);
-  const categoria = safeText(input.categoria);
-  const precioVenta = num(input.precioVenta);
+  const nombre = String(input.nombre || '').normalize('NFKC').trim().replace(/\s+/g, ' ');
+  const codigoBarras = String(input.codigoBarras || '').trim();
+  const categoria = String(input.categoria || '').normalize('NFKC').trim().replace(/\s+/g, ' ');
+  const precioVenta = Number(input.precioVenta);
   const imagenUri = String(input.imagenUri || '').trim() || existing?.imagenUri || null;
-  if (imagenUri && (!/^https:\/\//i.test(imagenUri) || imagenUri.length > 2000)) {
-    throw new Error('La imagen debe tener una dirección HTTPS válida.');
+  if (!nombre || nombre.length > 120 || !codigoBarras || codigoBarras.length > 90 ||
+      !categoria || categoria.length > 80 || !Number.isFinite(precioVenta) || precioVenta < 0) {
+    throw new Error('Completa nombre, código de barras, categoría y precio válido.');
   }
-  if (!nombre || !codigoBarras || !categoria || !Number.isFinite(precioVenta) || precioVenta < 0) {
-    throw new Error('Completa nombre, código, categoría y precio válido.');
+  if (imagenUri && (!imagenUri.startsWith('https://res.cloudinary.com/') || imagenUri.length > 2000)) {
+    throw new Error('Selecciona o toma una imagen para cargarla de forma segura.');
   }
-  if (!asInt(id)) throw new Error('El ID del producto no es compatible con Android.');
-  const refControl = doc(db, 'usuarios', uid, '_control', 'catalogo');
-  const refProd = doc(db, 'usuarios', uid, 'productos', id);
-  const refInv = doc(db, 'usuarios', uid, 'inventario', id);
+  if (!asInt(id)) throw new Error('El identificador no es compatible con Android.');
+  const owner = doc(db, 'usuarios', uid);
+  const refControl = doc(owner, '_control', 'catalogo');
+  const refProd = doc(owner, 'productos', id);
+  const refInv = doc(owner, 'inventario', id);
+  const categoryRef = doc(owner, 'categorias', await categoryId(categoria));
+  // Igual que Android: versión del catálogo -> catálogo completo -> transacción.
+  const version = await getDocFromServer(refControl);
+  const expectedRevision = Number(version.data()?.revision || 0);
+  const catalog = await getDocsFromServer(collection(owner, 'productos'));
+  for (const item of catalog.docs) {
+    if (item.id === id) continue;
+    if (normalizeCatalogValue(item.data().nombre) === normalizeCatalogValue(nombre)) {
+      throw new Error('Ya existe un producto con ese nombre.');
+    }
+    if (normalizeCatalogValue(item.data().codigoBarras) === normalizeCatalogValue(codigoBarras)) {
+      throw new Error('Ese código de barras ya pertenece a otro producto.');
+    }
+  }
   await runTransaction(db, async tx => {
     const [control, previo, inventario] = await Promise.all([
       tx.get(refControl), tx.get(refProd), tx.get(refInv),
     ]);
-    if (!existing && previo.exists()) throw new Error('Se generó un ID ocupado. Intenta guardar de nuevo.');
-    if (existing && !previo.exists()) throw new Error('Producto eliminado. Actualiza el catálogo.');
-    const revision = Number(control.data()?.revision || 0);
-    const ahora = Date.now();
-    tx.set(refProd, {
-      ...(previo.data() || {}), id: Number(id), nombre, codigoBarras, categoria,
-      precioVenta, imagenUri,
-      propietarioUid: uid, fechaActualizacion: ahora,
-    });
-    if (!inventario.exists()) {
-      tx.set(refInv, {
-        productoId: Number(id), stockActual: 0, stockMinimo: 0,
-        propietarioUid: uid, fechaActualizacion: ahora,
-      });
+    if (Number(control.data()?.revision || 0) !== expectedRevision) {
+      throw new Error('Otro dispositivo actualizó el catálogo. Actualiza la lista y vuelve a guardar.');
     }
-    tx.set(refControl, {
-      revision: revision + 1, propietarioUid: uid, fechaActualizacion: ahora,
-    }, { merge: true });
+    if (!existing && previo.exists()) throw new Error('Ya existe un producto con ese identificador. Intenta otra vez.');
+    if (existing && !previo.exists()) throw new Error('El producto fue eliminado. Actualiza el catálogo.');
+    const ahora = Date.now();
+    tx.set(refProd, { ...(previo.data() || {}), id: Number(id), nombre, codigoBarras, categoria,
+      precioVenta, imagenUri, propietarioUid: uid, fechaActualizacion: ahora });
+    tx.set(categoryRef, { nombre: categoria, propietarioUid: uid, fechaActualizacion: ahora });
+    if (!inventario.exists()) {
+      tx.set(refInv, { productoId: Number(id), stockActual: 0, stockMinimo: 0,
+        propietarioUid: uid, fechaActualizacion: ahora });
+    }
+    tx.set(refControl, { revision: expectedRevision + 1, propietarioUid: uid, fechaActualizacion: ahora }, { merge: true });
   });
+}
+export async function deleteProduct(uid, product) {
+  assertOwner(uid);
+  if (!product?.docId) throw new Error('Producto no encontrado.');
+  const reference = doc(db, 'usuarios', uid, 'productos', product.docId);
+  const current = await getDocFromServer(reference);
+  if (!current.exists()) throw new Error('El producto ya fue eliminado.');
+  if (current.data()?.propietarioUid !== uid) throw new Error('No tienes permiso para eliminarlo.');
+  // Igual que Android, se borra el producto, no su historial de ventas.
+  await deleteDoc(reference);
 }
 
 export async function saveStock(uid, product, stockActual, stockMinimo) {
@@ -115,7 +168,8 @@ export async function saveProvider(uid, input, previous = null) {
 export async function saveOffer(uid, product, price) {
   assertOwner(uid);
   const precioOferta = Number(price);
-  if (!Number.isFinite(precioOferta) || precioOferta <= 0 || precioOferta >= Number(product.precioVenta)) {
+  if (!Number.isFinite(precioOferta) || precioOferta <= 0 || precioOferta >= Number(product.precioVenta) ||
+      Math.abs(precioOferta * 100 - Math.round(precioOferta * 100)) > 0.000001) {
     throw new Error('La oferta debe ser mayor que $0 y menor al precio de venta.');
   }
   await setDoc(doc(db, 'usuarios', uid, 'ofertas', product.docId), {
@@ -125,10 +179,8 @@ export async function saveOffer(uid, product, price) {
 
 export async function disableOffer(uid, product) {
   assertOwner(uid);
-  const ref = doc(db, 'usuarios', uid, 'ofertas', product.docId);
-  const existing = await getDoc(ref);
-  if (!existing.exists()) return;
-  await updateDoc(ref, { activa: false, actualizadoEn: serverTimestamp() });
+  if (!product?.docId) throw new Error('Producto no encontrado.');
+  await deleteDoc(doc(db, 'usuarios', uid, 'ofertas', product.docId));
 }
 
 export async function saveSpei(uid, input) {
