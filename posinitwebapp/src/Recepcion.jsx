@@ -39,7 +39,7 @@ export default function MerchandiseReceipt({uid,products,inventory,providers,rec
     try{
       await receiveMerchandiseBatch(uid,cart,provider);
       setCart([]);setProvider('');
-      onSaved?.('✅ Mercancía registrada en Firebase. Inventario e historial sincronizados.');
+      onSaved?.('✅ Mercancía registrada correctamente. Inventario e historial sincronizados.');
     }catch(e){setError(e.message||'No fue posible registrar la recepción.');}
     finally{setWorking(false);}
   };
