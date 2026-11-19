@@ -284,13 +284,19 @@ export async function receiveMerchandiseBatch(uid, cart, provider = '') {
 // Tema propio de la página de administración. Nunca altera premiumColores.
 export async function saveWebTheme(uid, theme) {
   assertOwner(uid);
-  const valid = ['azul','celeste','verde','morado','naranja','oscuro'];
-  if (!valid.includes(theme)) throw new Error('Tema no admitido.');
+  const basic = ['azul','celeste','negro','blanco'];
+  const premium = ['rojo','verde','morado','rosa','naranja','amarillo','turquesa','cian','indigo','violeta','lima','cafe','gris','gris_claro','azul_rey','esmeralda','coral','dorado','menta','petroleo','terracota','lavanda','arena','vino','durazno','acero','oliva','marfil'];
+  if (!basic.includes(theme) && !premium.includes(theme)) throw new Error('Color no admitido.');
+  if (premium.includes(theme)) {
+    const benefit = await getDocFromServer(doc(db,'usuarios',uid,'beneficios','premium'));
+    if (!benefit.exists() || benefit.data()?.colores !== true) {
+      throw new Error('Color Init no está habilitado para esta cuenta. Utiliza un color gratuito.');
+    }
+  }
   await setDoc(doc(db,'usuarios',uid,'configuracion','webApp'), {
     propietarioUid:uid,temaWeb:theme,fechaActualizacion:Date.now(),
   },{merge:true});
 }
-
 
 // Registro de robo compatible con la app móvil: descuento y folio atómicos.
 export async function registerLoss(uid, product, quantity, observation='') {
