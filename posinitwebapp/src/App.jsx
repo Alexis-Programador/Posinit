@@ -8,7 +8,9 @@ import {
 } from './data';
 import MerchandiseReceipt from './Recepcion';
 import { DailySales, LossRegister } from './ExtraScreens';
-import { AdvancedStats, AppearancePanel, CategorySummary, themeById } from './MobileFeatures';
+import { AdvancedStats, AppearancePanel, themeById } from './MobileFeatures';
+import ProductEditor from './ProductEditor';
+import { CategoriesScreen, OffersScreen } from './CategoriesOffers';
 
 const NAV = [
   { title: 'Panel principal', children: [['inicio', '🏠', 'Resumen en vivo']] },
@@ -54,9 +56,9 @@ function Panel({ title, subtitle, action, children }) {
   </section>;
 }
 function Status({ feed }) {
-  if (feed.loading) return <div className="status-line">Cargando desde Firebase…</div>;
-  if (feed.error) return <div className="message error">Firestore: {feed.error}. Revisa la sesión y las reglas del negocio.</div>;
-  if (feed.fromCache) return <div className="message warn">Se muestran datos almacenados en este dispositivo. Esperando sincronización con Firebase.</div>;
+  if (feed.loading) return <div className="status-line">Cargando información…</div>;
+  if (feed.error) return <div className="message error">No se pudo sincronizar: {feed.error}.</div>;
+  if (feed.fromCache) return <div className="message warn">Se muestran datos almacenados en este dispositivo. Esperando sincronización con tu negocio.</div>;
   return null;
 }
 function Modal({ title, onClose, children }) {
@@ -84,7 +86,7 @@ function EditForm({ title, defaults, fields, onSave, onClose }) {
     <form onSubmit={submit} className="edit-form">
       {fields.map(f => <Field key={f.name} {...f} value={values[f.name]} onChange={change} />)}
       {error && <div className="message error">{error}</div>}
-      <div className="form-actions"><button type="button" onClick={onClose} className="btn ghost">Cancelar</button><button disabled={busy} type="submit" className="btn primary">{busy ? 'Guardando…' : 'Guardar en Firebase'}</button></div>
+      <div className="form-actions"><button type="button" onClick={onClose} className="btn ghost">Cancelar</button><button disabled={busy} type="submit" className="btn primary">{busy ? 'Guardando…' : 'Guardar cambios'}</button></div>
     </form>
   </Modal>;
 }
@@ -105,7 +107,7 @@ function Login() {
     catch { setMessage('No fue posible solicitar la recuperación. Revisa el correo.'); }
   };
   return <div className="auth-layout">
-    <div className="auth-brand"><div className="brand-symbol">P</div><span className="tagline">POS INIT · ADMINISTRACIÓN</span><h1>Tu negocio,<br />en todas partes.</h1><p>Administra la misma información que utilizas en Android y iOS, directamente desde la web.</p><div className="auth-pills">🔄 Datos en vivo <span>•</span> 🔐 Solo propietario <span>•</span> ☁️ Firebase</div></div>
+    <div className="auth-brand"><div className="brand-symbol">P</div><span className="tagline">POS INIT · ADMINISTRACIÓN</span><h1>Tu negocio,<br />en todas partes.</h1><p>Administra la misma información que utilizas en Android y iOS, directamente desde la web.</p><div className="auth-pills">🔄 Datos en vivo <span>•</span> 🔐 Solo propietario <span>•</span> ☁️ Sincronizado</div></div>
     <div className="auth-card"><div className="auth-card-icon">🔐</div><h2>Entrar a POSInitWebApp</h2><p>Usa el mismo correo y contraseña del propietario registrados en la aplicación móvil POS Init.</p>
       <form onSubmit={login} className="edit-form"><label className="field"><span>Correo electrónico</span><input autoComplete="email" type="email" required value={email} onChange={e => setEmail(e.target.value)} placeholder="correo@negocio.com" /></label>
         <label className="field"><span>Contraseña</span><input type="password" autoComplete="current-password" minLength={6} required value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••••" /></label>
@@ -132,6 +134,8 @@ export default function App() {
     catch { return 'cover'; }
   });
   const [themeBusy, setThemeBusy] = useState(false);
+  const [premiumEnabled, setPremiumEnabled] = useState(false);
+  const [benefitError, setBenefitError] = useState('');
   const changeFit = () => setImageFit(old => {
     const next=old==='cover'?'contain':'cover';
     try {localStorage.setItem('posinit-web-image-fit',next);} catch {}
@@ -142,7 +146,7 @@ export default function App() {
     // No ocultar indefinidamente el acceso si Firebase Auth no responde.
     const authTimeout = setTimeout(() => {
       setAuthReady(true);
-      setAuthError('Firebase está tardando en responder. Revisa tu conexión o vuelve a iniciar sesión.');
+      setAuthError('El servidor está tardando en responder. Revisa tu conexión o vuelve a iniciar sesión.');
     }, 12000);
     let unsubscribeProfile = () => {};
     const unsubscribeAuth = onAuthStateChanged(auth, current => {
@@ -162,7 +166,14 @@ export default function App() {
   }, []);
 
   const uid = profile?.uid || '';
+  useEffect(() => {
+    if (!uid) { setPremiumEnabled(false); setBenefitError(''); return; }
+    return onSnapshot(doc(db, 'usuarios', uid, 'beneficios', 'premium'),
+      snapshot => { setPremiumEnabled(snapshot.exists() && snapshot.data()?.colores === true); setBenefitError(''); },
+      error => { setPremiumEnabled(false); setBenefitError(error.message); });
+  }, [uid]);
   const products = useLive(uid, 'productos');
+  const categories = useLive(uid, 'categorias');
   const inventory = useLive(uid, 'inventario');
   const sales = useLive(uid, 'ventas', ['inicio','ventas','ventasHoy','cajaDia','reportes','cuenta'].includes(screen));
   const providers = useLive(uid, 'proveedores', ['proveedores','mercancia'].includes(screen));
@@ -178,10 +189,11 @@ export default function App() {
   const settings = useLive(uid, 'configuracion');
   const generalConfig = settings.rows.find(x=>x.docId==='general')||{};
   const webConfig = settings.rows.find(x=>x.docId==='webApp')||{};
-  const selectedTheme = themeById(webConfig.temaWeb);
+  const configuredTheme = themeById(webConfig.temaWeb);
+  const selectedTheme = configuredTheme.premium && !premiumEnabled
+    ? themeById('azul') : configuredTheme;
 
   const stock = useMemo(() => new Map(inventory.rows.map(r => [r.docId, r])), [inventory.rows]);
-  const offerMap = useMemo(() => new Map(offers.rows.map(r => [r.docId, r])), [offers.rows]);
   const low = useMemo(() => products.rows.filter(p => {
     const inv = stock.get(p.docId); return inv && Number(inv.stockActual || 0) <= Number(inv.stockMinimo || 0);
   }), [products.rows, stock]);
@@ -194,12 +206,12 @@ export default function App() {
     cajeros: cashiers, trabajadores: workers, roles, configuracion: settings, spei: settings,
   }[screen] || EMPTY;
   const navigate = name => { setScreen(name); setNavOpen(false); setSearch(''); setEdit(null); setNotice(''); setDetail(null); };
-  const notify = async job => { setNotice(''); try { await job(); setNotice('✅ Guardado en Firebase. Los dispositivos recibirán el cambio al sincronizarse.'); setEdit(null); } catch (e) { setNotice('❌ ' + (e.message || 'No se pudo guardar.')); } };
+  const notify = async job => { setNotice(''); try { await job(); setNotice('✅ Cambios guardados. Los dispositivos recibirán el cambio al sincronizarse.'); setEdit(null); } catch (e) { setNotice('❌ ' + (e.message || 'No se pudo guardar.')); } };
   const filtered = rows => rows.filter(v => Object.values(v).some(x => typeof x === 'string' && x.toLowerCase().includes(search.toLowerCase())));
 
   if (!authReady) return <div className="splash">🔵 Conectando POS Init…</div>;
   if (!owner) return <Login />;
-  if (!profile) return <div className="splash"><div className="restricted"><h2>🔐 Verificación del propietario</h2><p>{authError || 'Buscando tu negocio en Firebase…'}</p><button className="btn primary" onClick={() => signOut(auth)}>Salir</button></div></div>;
+  if (!profile) return <div className="splash"><div className="restricted"><h2>🔐 Verificación del propietario</h2><p>{authError || 'Buscando tu negocio…'}</p><button className="btn primary" onClick={() => signOut(auth)}>Salir</button></div></div>;
 
   const rowTable = (data, columns, sortKey = 'fechaHora') => {
     const rows = filtered(data.rows).sort((a,b) => Number(b[sortKey] || 0)-Number(a[sortKey] || 0));
@@ -243,11 +255,7 @@ export default function App() {
           {filtered(products.rows).map(p => { const st=stock.get(p.docId);const lowFlag=st && Number(st.stockActual || 0)<=Number(st.stockMinimo||0);return <tr key={p.docId}><td><strong>{p.nombre}</strong><small>{p.codigoBarras}</small></td><td>{st?.stockActual ?? 0}</td><td>{st?.stockMinimo ?? 0}</td><td><span className={'chip '+(lowFlag?'danger':'success')}>{lowFlag?'Stock bajo':'Disponible'}</span></td><td><button className="btn small outline" onClick={()=>setEdit({type:'stock',row:p,stock:st})}>Ajustar</button></td></tr> })}
         </tbody></table></div>
       </Panel>;
-      case 'ofertas': return <Panel title="Ofertas y promociones" subtitle="Configura descuentos sobre los productos existentes">
-        <Status feed={offers}/><div className="table-wrap"><table><thead><tr><th>Producto</th><th>Precio normal</th><th>Oferta</th><th>Estado</th><th>Acción</th></tr></thead><tbody>
-          {filtered(products.rows).map(p => {const offer=offerMap.get(p.docId);return <tr key={p.docId}><td>{p.nombre}</td><td>{money(p.precioVenta)}</td><td>{offer?.activa?money(offer.precioOferta):'—'}</td><td><span className={'chip '+(offer?.activa?'success':'neutral')}>{offer?.activa?'Activa':'Sin oferta'}</span></td><td><button className="btn small outline" onClick={()=>setEdit({type:'offer',row:p,offer})}>Configurar</button></td></tr>})}
-        </tbody></table></div>
-      </Panel>;
+      case 'ofertas': return <><Status feed={products}/><Status feed={offers}/><OffersScreen uid={uid} products={products.rows} offers={offers.rows} search={search} onEdit={(row,offer)=>setEdit({type:'offer',row,offer})}/></>;
       case 'proveedores': return <Panel title="Proveedores" subtitle="Directorio compartido con la aplicación móvil" action={<button className="btn primary" onClick={()=>setEdit({type:'provider',row:null})}>+ Nuevo proveedor</button>}>
         {rowTable(providers,[['Nombre',x=>x.nombre],['Empresa',x=>x.empresa||'—'],['Teléfono',x=>[x.codigoPais,x.telefono].filter(Boolean).join(' ')||'—'],['',x=><button className="btn small outline" onClick={e=>{e.stopPropagation();setEdit({type:'provider',row:x});}}>Editar</button>]],'fechaActualizacion')}
       </Panel>;
@@ -282,9 +290,9 @@ export default function App() {
         {rowTable(roles,[['Rol',x=>x.nombre||x.docId],['Permisos de lectura',x=>Object.keys(x.ver||{}).filter(k=>x.ver?.[k]).length],['Permisos de edición',x=>Object.keys(x.editar||{}).filter(k=>x.editar?.[k]).length]],'fechaActualizacion')}
       </Panel>;
       case 'reportes': return <><Status feed={sales}/><Status feed={received}/><Status feed={robberies}/><AdvancedStats sales={sales.rows} products={products.rows} inventory={inventory.rows} received={received.rows} robberies={robberies.rows}/></>;
-      case 'categorias': return <CategorySummary products={products.rows} onProducts={()=>navigate('productos')}/>;
+      case 'categorias': return <CategoriesScreen uid={uid} products={products.rows} categories={categories.rows} loading={categories.loading} error={categories.error}/>;
       case 'existencias': return <Panel title="Estado de existencias" subtitle="Productos agotados, en mínimo y disponibles, actualizados en tiempo real"><Status feed={products}/><Status feed={inventory}/><div className="table-wrap"><table><thead><tr><th>Producto</th><th>Categoría</th><th>Unidades</th><th>Mínimo</th><th>Estado</th></tr></thead><tbody>{[...products.rows].sort((a,b)=>Number(stock.get(a.docId)?.stockActual||0)-Number(stock.get(b.docId)?.stockActual||0)).map(p=>{const st=stock.get(p.docId)||{};const n=Number(st.stockActual||0),min=Number(st.stockMinimo||0);return <tr key={p.docId}><td><strong>{p.nombre}</strong><small>{p.codigoBarras}</small></td><td>{p.categoria||'Sin categoría'}</td><td>{n}</td><td>{min}</td><td><span className={'chip '+(n<=min?'danger':'success')}>{stockStatusLabel(n, min)}</span></td></tr>})}</tbody></table></div></Panel>;
-      case 'colores': return <><Status feed={settings}/><AppearancePanel theme={selectedTheme.id} mobileTheme={generalConfig.tema} mobileAccent={generalConfig.colorPrincipal} busy={themeBusy} onSave={async next=>{setThemeBusy(true);try{await saveWebTheme(uid,next);setNotice('✅ Tema web guardado en Firebase.');}catch(e){setNotice('❌ '+e.message);}finally{setThemeBusy(false);}}}/></>;
+      case 'colores': return <><Status feed={settings}/><AppearancePanel theme={selectedTheme.id} mobileTheme={generalConfig.colorPrincipal} mobileAccent={generalConfig.colorIconos} premiumEnabled={premiumEnabled} benefitError={benefitError} busy={themeBusy} onSave={async next=>{setThemeBusy(true);try{await saveWebTheme(uid,next);setNotice('✅ Color aplicado a la web.');}catch(e){setNotice('❌ '+e.message);}finally{setThemeBusy(false);}}}/></>;
       case 'configuracion': {
         const general = settings.rows.find(x=>x.docId==='general') || {};
         return <Panel title="Configuración del negocio" subtitle="Ajustes compartidos con Android e iOS"><Status feed={settings}/><div className="settings-grid"><div className="settings-item"><span>Teléfono de contacto</span><strong>{general.telefonoContacto||'Sin configurar'}</strong></div><div className="settings-item"><span>Notificaciones</span><strong>{general.notificacionesActivas?'Activadas':'Desactivadas'}</strong></div><div className="settings-item"><span>Alertas por stock</span><strong>{general.notificacionesStock?'Activadas':'Desactivadas'}</strong></div><div className="settings-item"><span>Tema de la aplicación</span><strong>{general.tema||'Predeterminado'}</strong></div></div>
@@ -295,8 +303,8 @@ export default function App() {
         return <Panel title="POS Init Pay · SPEI" subtitle="Datos bancarios utilizados por el punto de venta web"><Status feed={settings}/><div className="settings-grid"><div className="settings-item"><span>Banco</span><strong>{pay.banco||'No configurado'}</strong></div><div className="settings-item"><span>Titular</span><strong>{pay.titular||'No configurado'}</strong></div><div className="settings-item"><span>CLABE</span><strong>{pay.clabe?'•••• •••• •••• '+String(pay.clabe).slice(-4):'No configurada'}</strong></div><div className="settings-item"><span>Pagos con tarjeta</span><strong>Se administran por Stripe Connect</strong></div></div><button className="btn primary" onClick={()=>setEdit({type:'spei',row:pay})}>Configurar SPEI</button>
           <p className="message warn">Esta sección no confirma depósitos automáticamente. Siempre comprueba los movimientos reales en tu banco.</p></Panel>;
       }
-      case 'cuenta': return <Panel title="Mi negocio" subtitle="Cuenta principal registrada en POS Init"><div className="settings-grid"><div className="settings-item"><span>Empresa</span><strong>{profile.nombreEmpresa||profile.nombreNegocio||'—'}</strong></div><div className="settings-item"><span>Correo del propietario</span><strong>{owner.email}</strong></div><div className="settings-item"><span>Código del negocio</span><strong>{profile.businessId}</strong></div><div className="settings-item"><span>Proyecto Firebase</span><strong>ventas-d8342</strong></div></div><button className="btn outline" onClick={()=>sendPasswordResetEmail(auth,owner.email).then(()=>setNotice('Te enviamos un correo de recuperación.')).catch(e=>setNotice(e.message))}>Solicitar cambio de contraseña</button></Panel>;
-      case 'clientes': return <Panel title="Clientes" subtitle="Función disponible en Android"><p>El ZIP móvil utiliza una base local Room para clientes. No encontré una colección equivalente en las reglas compartidas de Firestore. Para evitar inventar información, esta pantalla no muestra datos ni los sincroniza todavía.</p><div className="message warn">Se requiere una migración segura de clientes locales antes de habilitar este módulo web.</div></Panel>;
+      case 'cuenta': return <Panel title="Mi negocio" subtitle="Cuenta principal registrada en POS Init"><div className="settings-grid"><div className="settings-item"><span>Empresa</span><strong>{profile.nombreEmpresa||profile.nombreNegocio||'—'}</strong></div><div className="settings-item"><span>Correo del propietario</span><strong>{owner.email}</strong></div><div className="settings-item"><span>Código del negocio</span><strong>{profile.businessId}</strong></div><div className="settings-item"><span>Sincronización</span><strong>Activada</strong></div></div><button className="btn outline" onClick={()=>sendPasswordResetEmail(auth,owner.email).then(()=>setNotice('Te enviamos un correo de recuperación.')).catch(e=>setNotice(e.message))}>Solicitar cambio de contraseña</button></Panel>;
+      case 'clientes': return <Panel title="Clientes" subtitle="Función disponible en Android"><p>El ZIP móvil utiliza una base local Room para clientes. No encontré una colección equivalente en los datos sincronizados. Para evitar inventar información, esta pantalla no muestra datos ni los sincroniza todavía.</p><div className="message warn">Se requiere una migración segura de clientes locales antes de habilitar este módulo web.</div></Panel>;
       default: return null;
     }
   };
@@ -304,7 +312,7 @@ export default function App() {
   const editor = () => {
     if (!edit) return null;
     switch (edit.type) {
-      case 'product': return <EditForm key={edit.row?.docId||'new'} title={edit.row?'Editar producto':'Nuevo producto'} defaults={{nombre:edit.row?.nombre||'',codigoBarras:edit.row?.codigoBarras||'',categoria:edit.row?.categoria||'',precioVenta:edit.row?.precioVenta??'',imagenUri: String(edit.row?.imagenUri || '').startsWith('https://') ? edit.row.imagenUri : ''}} fields={[{name:'nombre',label:'Nombre',required:true},{name:'codigoBarras',label:'Código de barras',required:true},{name:'categoria',label:'Categoría',required:true},{name:'precioVenta',label:'Precio de venta MXN',type:'number',min:0,required:true},{name:'imagenUri',label:'URL HTTPS de imagen (opcional)',type:'url'}]} onClose={()=>setEdit(null)} onSave={v=>saveProduct(uid,v,edit.row)}/>;
+      case 'product': return <ProductEditor key={edit.row?.docId || 'new'} product={edit.row} uid={uid} products={products.rows} categories={categories.rows} onSaved={setNotice} onClose={()=>setEdit(null)}/>;
       case 'stock': return <EditForm title={'Ajustar stock · '+edit.row.nombre} defaults={{stockActual:edit.stock?.stockActual??0,stockMinimo:edit.stock?.stockMinimo??0}} fields={[{name:'stockActual',label:'Unidades disponibles',type:'number',min:0,required:true},{name:'stockMinimo',label:'Mínimo permitido',type:'number',min:0,required:true}]} onClose={()=>setEdit(null)} onSave={v=>saveStock(uid,edit.row,v.stockActual,v.stockMinimo)}/>;
       case 'provider': return <EditForm title={edit.row?'Editar proveedor':'Nuevo proveedor'} defaults={{nombre:edit.row?.nombre||'',empresa:edit.row?.empresa||'',codigoPais:edit.row?.codigoPais||'+52',telefono:edit.row?.telefono||''}} fields={[{name:'nombre',label:'Nombre',required:true},{name:'empresa',label:'Empresa'},{name:'codigoPais',label:'Clave país'},{name:'telefono',label:'Teléfono'}]} onClose={()=>setEdit(null)} onSave={v=>saveProvider(uid,v,edit.row)}/>;
       case 'offer': return <OfferEditor edit={edit} uid={uid} close={()=>setEdit(null)}/>;
@@ -314,7 +322,7 @@ export default function App() {
     }
   };
 
-  return <div className={'app-shell '+(selectedTheme.id==='oscuro'?'web-dark':'')} style={{'--accent':selectedTheme.accent,'--sidebar-color':selectedTheme.sidebar,'--page-background':selectedTheme.background}}>
+  return <div className={'app-shell '+(selectedTheme.id==='negro'?'web-dark':'')} style={{'--accent':selectedTheme.accent,'--sidebar-color':selectedTheme.sidebar,'--page-background':selectedTheme.background}}>
     {navOpen && <button className="nav-backdrop" onClick={()=>setNavOpen(false)} aria-label="Cerrar menú"/>}
     <aside className={'sidebar '+(navOpen?'open':'')}><div className="sidebar-brand"><div className="logo">P</div><span><strong>POS Init</strong><small>WEB APP · ADMIN</small></span></div>
       <div className="business-chip"><div className="business-avatar">🏪</div><div><strong>{profile.nombreEmpresa||profile.nombreNegocio||'Mi negocio'}</strong><small>Propietario · {profile.businessId}</small></div></div>
@@ -324,10 +332,10 @@ export default function App() {
     <main className="main-area">
       <header className="topbar"><div className="left-top"><button className="menu-button" onClick={()=>setNavOpen(true)} aria-label="Abrir menú">☰</button><div><span className="crumb">POSInitWebApp / Administración</span><h2>{SECTION_NAME[screen]}</h2></div></div><div className="top-actions"><span className="online-pill">● En tiempo real</span><div className="user-circle" title={owner.email}>{owner.email?.charAt(0).toUpperCase()}</div></div></header>
       <div className="page-content">
-        {!['inicio','reportes','configuracion','spei','cuenta','clientes','etiquetas'].includes(screen) && <div className="search-row"><label className="search-input">⌕ <input placeholder={'Buscar en '+SECTION_NAME[screen]?.toLowerCase()+'...'} value={search} onChange={e=>setSearch(e.target.value)}/></label><span className="sync-label">🔄 Firestore: {activeFeed.error?'Error':activeFeed.fromCache?'Caché local':'En vivo'}</span></div>}
+        {!['inicio','reportes','configuracion','spei','cuenta','clientes','etiquetas'].includes(screen) && <div className="search-row"><label className="search-input">⌕ <input placeholder={'Buscar en '+SECTION_NAME[screen]?.toLowerCase()+'...'} value={search} onChange={e=>setSearch(e.target.value)}/></label><span className="sync-label">🔄 {activeFeed.error?'Sin conexión':activeFeed.fromCache?'Sincronización pendiente':'Sincronizado'}</span></div>}
         {notice && <div role="status" className="message info">{notice}</div>}
         {content()}
-        <div className="bottom-note">POSInitWebApp · Sesión privada del propietario · Android / iOS / Web · <strong>Firebase ventas-d8342</strong></div>
+        <div className="bottom-note">POSInitWebApp · Administración privada · Android / iOS / Web</div>
       </div>
     </main>
     {editor()}
@@ -339,11 +347,11 @@ function OfferEditor({ edit, uid, close }) {
   const [price,setPrice] = useState(edit.offer?.precioOferta || '');
   const [busy,setBusy] = useState(false);
   const [error,setError] = useState('');
-  const run = async job => {setBusy(true);setError('');try{await job();close();}catch(e){setError(e.message||'Error en Firebase');}finally{setBusy(false);}};
+  const run = async job => {setBusy(true);setError('');try{await job();close();}catch(e){setError(e.message||'No se pudo guardar.');}finally{setBusy(false);}};
   return <Modal title={'Oferta · '+edit.row.nombre} onClose={close}>
     <p>Precio normal: <strong>{money(edit.row.precioVenta)}</strong></p><label className="field"><span>Precio especial</span><input type="number" min="0.01" step="0.01" value={price} onChange={e=>setPrice(e.target.value)}/></label>
     {error && <div className="message error">{error}</div>}
-    <div className="form-actions"><button className="btn ghost" onClick={close}>Cancelar</button>{edit.offer?.activa&&<button disabled={busy} className="btn danger-button" onClick={()=>run(()=>disableOffer(uid,edit.row))}>Desactivar</button>}<button disabled={busy} className="btn primary" onClick={()=>run(()=>saveOffer(uid,edit.row,price))}>{busy?'Guardando…':'Guardar oferta'}</button></div>
+    <div className="form-actions"><button className="btn ghost" onClick={close}>Cancelar</button>{edit.offer?.activa&&<button disabled={busy} className="btn danger-button" onClick={()=>run(()=>disableOffer(uid,edit.row))}>Eliminar oferta</button>}<button disabled={busy} className="btn primary" onClick={()=>run(()=>saveOffer(uid,edit.row,price))}>{busy?'Guardando…':'Guardar oferta'}</button></div>
   </Modal>;
 }
 function numDate(x) { const v=x?.fechaHora;return typeof v?.toMillis==='function'?v.toMillis():Number(v||0); }

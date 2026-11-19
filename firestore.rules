@@ -71,6 +71,24 @@ service cloud.firestore {
           && request.resource.data.nombreEmergencia is string && request.resource.data.nombreEmergencia.size() <= 100
           && request.resource.data.telefonoEmergencia is string && request.resource.data.telefonoEmergencia.size() <= 30;
       }
+      // Categorías compartidas por Android, iOS y POSInitWebApp.
+      // Mismo ID SHA-256 del nombre normalizado que usa CategoriaFirebaseManager.
+      match /categorias/{categoriaId} {
+        allow read: if request.auth != null
+          && (request.auth.uid == uid || puede("productos", "ver") || puede("productos", "editar"));
+        allow create, update: if request.auth != null
+          && (request.auth.uid == uid || puede("productos", "editar"))
+          && categoriaId.size() == 64
+          && request.resource.data.keys().hasOnly(["nombre", "propietarioUid", "fechaActualizacion"])
+          && request.resource.data.nombre is string
+          && request.resource.data.nombre.size() > 0
+          && request.resource.data.nombre.size() <= 80
+          && request.resource.data.propietarioUid == uid
+          && request.resource.data.fechaActualizacion is number;
+        allow delete: if request.auth != null
+          && (request.auth.uid == uid || puede("productos", "editar"));
+      }
+
       match /ofertas/{producto} {
         allow read: if request.auth != null && (request.auth.uid == uid || puede('ofertas','ver') || puede('productos','ver') || puede('inventario','ver') || puede('etiquetas','ver'));
         allow create, update: if request.auth != null && request.auth.uid == uid

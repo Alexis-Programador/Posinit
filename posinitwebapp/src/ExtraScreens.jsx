@@ -67,7 +67,7 @@ export function LossRegister({uid,products,inventory,records,onSaved}) {
     setWorking(true);setError('');
     try{
       await registerLoss(uid,product,n,note);
-      setQuantity('1');setNote('');setSelected('');onSaved?.('✅ Robo registrado y existencias actualizadas en Firebase.');
+      setQuantity('1');setNote('');setSelected('');onSaved?.('✅ Robo registrado y existencias actualizadas correctamente.');
     }catch(err){setError(err.message||'No se pudo registrar el robo.');}
     finally{setWorking(false);}
   };
