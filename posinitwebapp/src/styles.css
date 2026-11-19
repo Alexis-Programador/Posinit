@@ -103,3 +103,6 @@
 @media(min-width:1450px){.product-grid{grid-template-columns:repeat(4,minmax(0,1fr))}}
 @media(max-width:1050px){.receipt-layout{grid-template-columns:1fr}.stats-highlights{grid-template-columns:repeat(2,1fr)}}
 @media(max-width:570px){.product-grid{grid-template-columns:repeat(1,minmax(0,1fr));gap:12px}.product-image{height:230px}.catalog-actions{width:100%}.catalog-actions .btn{flex:1}.stats-highlights{grid-template-columns:repeat(2,minmax(0,1fr))}.stats-highlight{min-height:90px;padding:12px}.stats-highlight strong{font-size:18px}.receipt-row{align-items:flex-end}.receipt-row .btn{white-space:normal}.period-toolbar{gap:7px}.period-toolbar .btn{padding:9px}.period-toolbar input[type="date"]{width:100%}}
+
+.field select,.field textarea{width:100%;padding:12px 13px;border:1px solid #d8e2ef;border-radius:9px;font-size:14px;background:white;color:#203a5c;resize:vertical}
+.web-dark .field select,.web-dark .field textarea{background:#293b52;color:#f2f7ff;border-color:#48617e}

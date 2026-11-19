@@ -42,6 +42,10 @@ export async function saveProduct(uid, input, existing = null) {
   const nombre = safeText(input.nombre), codigoBarras = safeText(input.codigoBarras, 90);
   const categoria = safeText(input.categoria);
   const precioVenta = num(input.precioVenta);
+  const imagenUri = String(input.imagenUri || '').trim() || existing?.imagenUri || null;
+  if (imagenUri && (!/^https:\/\//i.test(imagenUri) || imagenUri.length > 2000)) {
+    throw new Error('La imagen debe tener una dirección HTTPS válida.');
+  }
   if (!nombre || !codigoBarras || !categoria || !Number.isFinite(precioVenta) || precioVenta < 0) {
     throw new Error('Completa nombre, código, categoría y precio válido.');
   }
@@ -59,7 +63,7 @@ export async function saveProduct(uid, input, existing = null) {
     const ahora = Date.now();
     tx.set(refProd, {
       ...(previo.data() || {}), id: Number(id), nombre, codigoBarras, categoria,
-      precioVenta, imagenUri: previo.data()?.imagenUri || null,
+      precioVenta, imagenUri,
       propietarioUid: uid, fechaActualizacion: ahora,
     });
     if (!inventario.exists()) {
@@ -229,4 +233,40 @@ export async function saveWebTheme(uid, theme) {
   await setDoc(doc(db,'usuarios',uid,'configuracion','webApp'), {
     propietarioUid:uid,temaWeb:theme,fechaActualizacion:Date.now(),
   },{merge:true});
+}
+
+
+// Registro de robo compatible con la app móvil: descuento y folio atómicos.
+export async function registerLoss(uid, product, quantity, observation='') {
+  assertOwner(uid);
+  const n=Number(quantity);
+  const id=String(product?.docId||'');
+  if(!id || !Number.isSafeInteger(n) || n<1 || n>2147483647) throw new Error('Producto o cantidad inválidos.');
+  const nota=String(observation||'').trim();
+  if(nota.length>500) throw new Error('La observación supera 500 caracteres.');
+  const recordId=crypto.randomUUID();
+  const pRef=doc(db,'usuarios',uid,'productos',id);
+  const invRef=doc(db,'usuarios',uid,'inventario',id);
+  const lossRef=doc(db,'usuarios',uid,'robos',recordId);
+  await runTransaction(db,async tx=>{
+    const registro=await tx.get(lossRef);
+    const producto=await tx.get(pRef);
+    const inventario=await tx.get(invRef);
+    if(registro.exists()) throw new Error('Ya existe un registro con ese folio.');
+    if(!producto.exists()||producto.data().propietarioUid!==uid) throw new Error('El producto no corresponde al negocio.');
+    if(!inventario.exists()||inventario.data().propietarioUid!==uid) throw new Error('No existe el inventario de este artículo.');
+    const prev=Number(inventario.data().stockActual);
+    const price=Number(producto.data().precioVenta);
+    if(!Number.isSafeInteger(prev)||prev<n||!Number.isFinite(price)||price<0) {
+      throw new Error('Cambiaron las existencias o el precio; revisa el inventario.');
+    }
+    const fecha=Date.now();
+    tx.update(invRef,{stockActual:prev-n,fechaActualizacion:fecha});
+    tx.set(lossRef,{
+      propietarioUid:uid,productoId:Number(id),nombre:String(producto.data().nombre),
+      codigo:String(producto.data().codigoBarras),unidades:n,
+      precioUnitario:price,importe:Number((price*n).toFixed(2)),
+      stockAnterior:prev,stockResultante:prev-n,nota,fechaHora:fecha,
+    });
+  });
 }

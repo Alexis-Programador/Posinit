@@ -7,6 +7,7 @@ import {
   saveProvider, saveOffer, disableOffer, saveSettings, saveSpei, saveWebTheme,
 } from './data';
 import MerchandiseReceipt from './Recepcion';
+import { DailySales, LossRegister } from './ExtraScreens';
 import { AdvancedStats, AppearancePanel, CategorySummary, themeById } from './MobileFeatures';
 
 const NAV = [
@@ -17,7 +18,7 @@ const NAV = [
     ['etiquetas', '🏷️', 'Etiquetas PDF'],
   ] },
   { title: 'Caja y control', children: [
-    ['ventas', '🧾', 'Ventas'], ['retiros', '💸', 'Retiros'], ['cortes', '💰', 'Cortes de caja'],
+    ['ventas', '🧾', 'Todas las ventas'], ['ventasHoy', '📆', 'Ventas de hoy'], ['cajaDia', '💵', 'Caja del día'], ['retiros', '💸', 'Retiros'], ['cortes', '💰', 'Cortes de caja'],
     ['cierres', '🔒', 'Cierres de sesión'],
   ] },
   { title: 'Reportes', children: [['reportes', '📊', 'Reportes y estadísticas']] },
@@ -159,13 +160,13 @@ export default function App() {
   const uid = profile?.uid || '';
   const products = useLive(uid, 'productos');
   const inventory = useLive(uid, 'inventario');
-  const sales = useLive(uid, 'ventas', ['inicio','ventas','reportes','cuenta'].includes(screen));
+  const sales = useLive(uid, 'ventas', ['inicio','ventas','ventasHoy','cajaDia','reportes','cuenta'].includes(screen));
   const providers = useLive(uid, 'proveedores', ['proveedores','mercancia'].includes(screen));
   const offers = useLive(uid, 'ofertas', screen === 'ofertas' || screen === 'inicio');
   const received = useLive(uid, 'registrosMercancia', ['mercancia','reportes'].includes(screen));
   const robberies = useLive(uid, 'robos', ['robos','reportes'].includes(screen));
-  const cashOuts = useLive(uid, 'retirosCaja', ['retiros','reportes'].includes(screen));
-  const cuts = useLive(uid, 'cortesCaja', screen === 'cortes');
+  const cashOuts = useLive(uid, 'retirosCaja', ['retiros','reportes','ventasHoy','cajaDia'].includes(screen));
+  const cuts = useLive(uid, 'cortesCaja', ['cortes','cajaDia','ventasHoy'].includes(screen));
   const closings = useLive(uid, 'cierresSesionCaja', screen === 'cierres');
   const cashiers = useLive(uid, 'usuariosSistema', screen === 'cajeros');
   const workers = useLive(uid, 'trabajadores', screen === 'trabajadores');
@@ -186,7 +187,7 @@ export default function App() {
   const todayRevenue = todaySales.reduce((a, v) => a + Number(v.total || 0), 0);
   const activeFeed = {
     inicio: sales, productos: products, inventario: inventory, ofertas: offers, proveedores: providers, mercancia: received, robos: robberies,
-    ventas: sales, retiros: cashOuts, cortes: cuts, cierres: closings,
+    ventas: sales, ventasHoy: sales, cajaDia: sales, retiros: cashOuts, cortes: cuts, cierres: closings,
     cajeros: cashiers, trabajadores: workers, roles, configuracion: settings, spei: settings,
   }[screen] || EMPTY;
   const navigate = name => { setScreen(name); setNavOpen(false); setSearch(''); setEdit(null); setNotice(''); setDetail(null); };
@@ -248,14 +249,14 @@ export default function App() {
         {rowTable(providers,[['Nombre',x=>x.nombre],['Empresa',x=>x.empresa||'—'],['Teléfono',x=>[x.codigoPais,x.telefono].filter(Boolean).join(' ')||'—'],['',x=><button className="btn small outline" onClick={e=>{e.stopPropagation();setEdit({type:'provider',row:x});}}>Editar</button>]],'fechaActualizacion')}
       </Panel>;
       case 'mercancia': return <><Status feed={products}/><Status feed={inventory}/><Status feed={providers}/><Status feed={received}/><MerchandiseReceipt uid={uid} products={products.rows} inventory={inventory.rows} providers={providers.rows} records={received.rows} onSaved={setNotice}/></>;
-      case 'robos': return <Panel title="Registros de robo" subtitle="Consulta protegida de las incidencias reportadas">
-        {rowTable(robberies,[['Producto',x=>productMap.get(String(x.productoId))?.nombre||x.producto||x.productoId],['Unidades',x=>x.unidades],['Stock restante',x=>x.stockResultante],['Fecha',x=>when(x.fechaHora || x.fechaActualizacion)]])}
-      </Panel>;
+      case 'robos': return <><Status feed={products}/><Status feed={inventory}/><Status feed={robberies}/><LossRegister uid={uid} products={products.rows} inventory={inventory.rows} records={robberies.rows} onSaved={setNotice}/></>;
       case 'etiquetas': return <Panel title="Etiquetas de productos" subtitle="Imprime las etiquetas y usa «Guardar como PDF» desde el navegador">
         <p className="muted">Esta versión incluye nombre, código y precio. El diseño avanzado de etiquetas de Android sigue siendo específico de la aplicación móvil.</p>
         <button className="btn primary" onClick={()=>window.print()}>🖨️ Imprimir / Guardar PDF</button>
         <div className="labels-print">{products.rows.map(p => <div className="label-print" key={p.docId}><strong>{p.nombre}</strong><span>{p.codigoBarras}</span><b>{money(p.precioVenta)}</b></div>)}</div>
       </Panel>;
+      case 'ventasHoy':
+      case 'cajaDia': return <><Status feed={sales}/><Status feed={cashOuts}/><Status feed={cuts}/><DailySales sales={sales.rows} cashOuts={cashOuts.rows} cuts={cuts.rows} onDetails={setDetail}/></>;
       case 'ventas': return <Panel title="Ventas del negocio" subtitle="Solo lectura: se registran y validan desde el flujo de caja autorizado" action={<button className="btn outline" onClick={()=>csvDownload('pos-init-ventas.csv',['Folio','Fecha','Importe','Método','Cajero'],sales.rows.map(v=>[v.id||v.docId,when(v.fechaHora),v.total,v.metodoPago,v.nombreUsuario]))}>↓ Exportar CSV</button>}>
         {rowTable(sales,[['Folio',x=><strong>#{String(x.id||x.docId).slice(0,10)}</strong>],['Fecha',x=>when(x.fechaHora)],['Cajero',x=>x.nombreUsuario||'—'],['Método',x=><span className="chip neutral">{x.metodoPago||'—'}</span>],['Productos',x=>x.cantidadProductos||x.productos?.length||0],['Total',x=><strong>{money(x.total)}</strong>]])}
       </Panel>;
@@ -299,7 +300,7 @@ export default function App() {
 
   const editor = () => {
     if (!edit) return null;
-    if (edit.type === 'product') return <EditForm key={edit.row?.docId||'new'} title={edit.row?'Editar producto':'Nuevo producto'} defaults={{nombre:edit.row?.nombre||'',codigoBarras:edit.row?.codigoBarras||'',categoria:edit.row?.categoria||'',precioVenta:edit.row?.precioVenta??''}} fields={[{name:'nombre',label:'Nombre',required:true},{name:'codigoBarras',label:'Código de barras',required:true},{name:'categoria',label:'Categoría',required:true},{name:'precioVenta',label:'Precio de venta MXN',type:'number',min:0,required:true}]} onClose={()=>setEdit(null)} onSave={v=>saveProduct(uid,v,edit.row)}/>;
+    if (edit.type === 'product') return <EditForm key={edit.row?.docId||'new'} title={edit.row?'Editar producto':'Nuevo producto'} defaults={{nombre:edit.row?.nombre||'',codigoBarras:edit.row?.codigoBarras||'',categoria:edit.row?.categoria||'',precioVenta:edit.row?.precioVenta??'',imagenUri: /^https:\/\//.test(edit.row?.imagenUri||'') ? edit.row.imagenUri : ''}} fields={[{name:'nombre',label:'Nombre',required:true},{name:'codigoBarras',label:'Código de barras',required:true},{name:'categoria',label:'Categoría',required:true},{name:'precioVenta',label:'Precio de venta MXN',type:'number',min:0,required:true},{name:'imagenUri',label:'URL HTTPS de imagen (opcional)',type:'url'}]} onClose={()=>setEdit(null)} onSave={v=>saveProduct(uid,v,edit.row)}/>;
     if (edit.type === 'stock') return <EditForm title={'Ajustar stock · '+edit.row.nombre} defaults={{stockActual:edit.stock?.stockActual??0,stockMinimo:edit.stock?.stockMinimo??0}} fields={[{name:'stockActual',label:'Unidades disponibles',type:'number',min:0,required:true},{name:'stockMinimo',label:'Mínimo permitido',type:'number',min:0,required:true}]} onClose={()=>setEdit(null)} onSave={v=>saveStock(uid,edit.row,v.stockActual,v.stockMinimo)}/>;
     if (edit.type === 'provider') return <EditForm title={edit.row?'Editar proveedor':'Nuevo proveedor'} defaults={{nombre:edit.row?.nombre||'',empresa:edit.row?.empresa||'',codigoPais:edit.row?.codigoPais||'+52',telefono:edit.row?.telefono||''}} fields={[{name:'nombre',label:'Nombre',required:true},{name:'empresa',label:'Empresa'},{name:'codigoPais',label:'Clave país'},{name:'telefono',label:'Teléfono'}]} onClose={()=>setEdit(null)} onSave={v=>saveProvider(uid,v,edit.row)}/>;
     if (edit.type === 'offer') return <OfferEditor edit={edit} uid={uid} close={()=>setEdit(null)}/>;
