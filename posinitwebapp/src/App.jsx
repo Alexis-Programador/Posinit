@@ -31,6 +31,10 @@ const NAV = [
   ] },
 ];
 const SECTION_NAME = Object.fromEntries(NAV.flatMap(group => group.children.map(([key, , name]) => [key, name])));
+function stockStatusLabel(quantity, minimum) {
+  if (quantity === 0) return 'Agotado';
+  return quantity <= minimum ? 'Stock bajo' : 'Disponible';
+}
 const DATE_COLUMNS = ['fechaHora', 'fechaActualizacion', 'creadoEn', 'fecha', 'actualizadoEn'];
 const EMPTY = { rows: [], loading: false, error: '', fromCache: false };
 const whole = v => (Number.isFinite(Number(v)) ? Math.max(0, Math.round(Number(v))) : 0);
@@ -177,7 +181,6 @@ export default function App() {
   const selectedTheme = themeById(webConfig.temaWeb);
 
   const stock = useMemo(() => new Map(inventory.rows.map(r => [r.docId, r])), [inventory.rows]);
-  const productMap = useMemo(() => new Map(products.rows.map(r => [r.docId, r])), [products.rows]);
   const offerMap = useMemo(() => new Map(offers.rows.map(r => [r.docId, r])), [offers.rows]);
   const low = useMemo(() => products.rows.filter(p => {
     const inv = stock.get(p.docId); return inv && Number(inv.stockActual || 0) <= Number(inv.stockMinimo || 0);
@@ -230,7 +233,7 @@ export default function App() {
       </>;
       case 'productos': return <Panel title="Catálogo de productos" subtitle="Imágenes grandes y fichas adaptadas al tamaño de tu pantalla" action={<div className="catalog-actions"><button className="btn outline" type="button" onClick={changeFit}>{imageFit==='cover'?'▣ Ajustar imagen':'▧ Llenar tarjeta'}</button><button className="btn primary" onClick={() => setEdit({ type: 'product', row: null })}>+ Agregar producto</button></div>}>
         <Status feed={products}/><div className="product-grid">{filtered(products.rows).sort((a,b)=>String(a.nombre).localeCompare(String(b.nombre))).map(p => <article key={p.docId} className="product-card">
-          <div className="product-image">{p.imagenUri && /^https:\/\//.test(p.imagenUri) ? <img src={p.imagenUri} alt={p.nombre} loading="lazy" style={{objectFit:imageFit}}/> : '📦'}</div>
+          <div className="product-image">{typeof p.imagenUri === 'string' && p.imagenUri.startsWith('https://') ? <img src={p.imagenUri} alt={p.nombre} loading="lazy" style={{objectFit:imageFit}}/> : '📦'}</div>
           <div><strong>{p.nombre}</strong><small>{p.codigoBarras} · {p.categoria}</small><b>{money(p.precioVenta)}</b><span className="mini-muted">Stock: {stock.get(p.docId)?.stockActual ?? '—'}</span></div>
           <button className="btn small outline" onClick={() => setEdit({ type:'product', row:p })}>Editar</button>
         </article>)}{!products.rows.length && <p className="muted">Sin productos registrados.</p>}</div>
@@ -280,7 +283,7 @@ export default function App() {
       </Panel>;
       case 'reportes': return <><Status feed={sales}/><Status feed={received}/><Status feed={robberies}/><AdvancedStats sales={sales.rows} products={products.rows} inventory={inventory.rows} received={received.rows} robberies={robberies.rows}/></>;
       case 'categorias': return <CategorySummary products={products.rows} onProducts={()=>navigate('productos')}/>;
-      case 'existencias': return <Panel title="Estado de existencias" subtitle="Productos agotados, en mínimo y disponibles, actualizados en tiempo real"><Status feed={products}/><Status feed={inventory}/><div className="table-wrap"><table><thead><tr><th>Producto</th><th>Categoría</th><th>Unidades</th><th>Mínimo</th><th>Estado</th></tr></thead><tbody>{[...products.rows].sort((a,b)=>Number(stock.get(a.docId)?.stockActual||0)-Number(stock.get(b.docId)?.stockActual||0)).map(p=>{const st=stock.get(p.docId)||{};const n=Number(st.stockActual||0),min=Number(st.stockMinimo||0);return <tr key={p.docId}><td><strong>{p.nombre}</strong><small>{p.codigoBarras}</small></td><td>{p.categoria||'Sin categoría'}</td><td>{n}</td><td>{min}</td><td><span className={'chip '+(n<=min?'danger':'success')}>{n===0?'Agotado':n<=min?'Stock bajo':'Disponible'}</span></td></tr>})}</tbody></table></div></Panel>;
+      case 'existencias': return <Panel title="Estado de existencias" subtitle="Productos agotados, en mínimo y disponibles, actualizados en tiempo real"><Status feed={products}/><Status feed={inventory}/><div className="table-wrap"><table><thead><tr><th>Producto</th><th>Categoría</th><th>Unidades</th><th>Mínimo</th><th>Estado</th></tr></thead><tbody>{[...products.rows].sort((a,b)=>Number(stock.get(a.docId)?.stockActual||0)-Number(stock.get(b.docId)?.stockActual||0)).map(p=>{const st=stock.get(p.docId)||{};const n=Number(st.stockActual||0),min=Number(st.stockMinimo||0);return <tr key={p.docId}><td><strong>{p.nombre}</strong><small>{p.codigoBarras}</small></td><td>{p.categoria||'Sin categoría'}</td><td>{n}</td><td>{min}</td><td><span className={'chip '+(n<=min?'danger':'success')}>{stockStatusLabel(n, min)}</span></td></tr>})}</tbody></table></div></Panel>;
       case 'colores': return <><Status feed={settings}/><AppearancePanel theme={selectedTheme.id} mobileTheme={generalConfig.tema} mobileAccent={generalConfig.colorPrincipal} busy={themeBusy} onSave={async next=>{setThemeBusy(true);try{await saveWebTheme(uid,next);setNotice('✅ Tema web guardado en Firebase.');}catch(e){setNotice('❌ '+e.message);}finally{setThemeBusy(false);}}}/></>;
       case 'configuracion': {
         const general = settings.rows.find(x=>x.docId==='general') || {};
@@ -300,13 +303,15 @@ export default function App() {
 
   const editor = () => {
     if (!edit) return null;
-    if (edit.type === 'product') return <EditForm key={edit.row?.docId||'new'} title={edit.row?'Editar producto':'Nuevo producto'} defaults={{nombre:edit.row?.nombre||'',codigoBarras:edit.row?.codigoBarras||'',categoria:edit.row?.categoria||'',precioVenta:edit.row?.precioVenta??'',imagenUri: /^https:\/\//.test(edit.row?.imagenUri||'') ? edit.row.imagenUri : ''}} fields={[{name:'nombre',label:'Nombre',required:true},{name:'codigoBarras',label:'Código de barras',required:true},{name:'categoria',label:'Categoría',required:true},{name:'precioVenta',label:'Precio de venta MXN',type:'number',min:0,required:true},{name:'imagenUri',label:'URL HTTPS de imagen (opcional)',type:'url'}]} onClose={()=>setEdit(null)} onSave={v=>saveProduct(uid,v,edit.row)}/>;
-    if (edit.type === 'stock') return <EditForm title={'Ajustar stock · '+edit.row.nombre} defaults={{stockActual:edit.stock?.stockActual??0,stockMinimo:edit.stock?.stockMinimo??0}} fields={[{name:'stockActual',label:'Unidades disponibles',type:'number',min:0,required:true},{name:'stockMinimo',label:'Mínimo permitido',type:'number',min:0,required:true}]} onClose={()=>setEdit(null)} onSave={v=>saveStock(uid,edit.row,v.stockActual,v.stockMinimo)}/>;
-    if (edit.type === 'provider') return <EditForm title={edit.row?'Editar proveedor':'Nuevo proveedor'} defaults={{nombre:edit.row?.nombre||'',empresa:edit.row?.empresa||'',codigoPais:edit.row?.codigoPais||'+52',telefono:edit.row?.telefono||''}} fields={[{name:'nombre',label:'Nombre',required:true},{name:'empresa',label:'Empresa'},{name:'codigoPais',label:'Clave país'},{name:'telefono',label:'Teléfono'}]} onClose={()=>setEdit(null)} onSave={v=>saveProvider(uid,v,edit.row)}/>;
-    if (edit.type === 'offer') return <OfferEditor edit={edit} uid={uid} close={()=>setEdit(null)}/>;
-    if (edit.type === 'settings') return <EditForm title="Ajustes generales" defaults={{telefonoContacto:edit.row.telefonoContacto||'',notificacionesActivas:edit.row.notificacionesActivas?'1':'0',notificacionesStock:edit.row.notificacionesStock?'1':'0'}} fields={[{name:'telefonoContacto',label:'Teléfono de contacto'},{name:'notificacionesActivas',label:'Notificaciones (1=Sí, 0=No)'},{name:'notificacionesStock',label:'Avisos por stock (1=Sí, 0=No)'}]} onClose={()=>setEdit(null)} onSave={v=>saveSettings(uid,{telefonoContacto:v.telefonoContacto,notificacionesActivas:v.notificacionesActivas==='1',notificacionesStock:v.notificacionesStock==='1'})}/>;
-    if (edit.type === 'spei') return <EditForm title="Configurar cuenta SPEI" defaults={{banco:edit.row.banco||'',titular:edit.row.titular||'',clabe:edit.row.clabe||''}} fields={[{name:'banco',label:'Banco',required:true},{name:'titular',label:'Titular de la cuenta',required:true},{name:'clabe',label:'CLABE de 18 dígitos',required:true}]} onClose={()=>setEdit(null)} onSave={v=>saveSpei(uid,v)}/>;
-    return null;
+    switch (edit.type) {
+      case 'product': return <EditForm key={edit.row?.docId||'new'} title={edit.row?'Editar producto':'Nuevo producto'} defaults={{nombre:edit.row?.nombre||'',codigoBarras:edit.row?.codigoBarras||'',categoria:edit.row?.categoria||'',precioVenta:edit.row?.precioVenta??'',imagenUri: String(edit.row?.imagenUri || '').startsWith('https://') ? edit.row.imagenUri : ''}} fields={[{name:'nombre',label:'Nombre',required:true},{name:'codigoBarras',label:'Código de barras',required:true},{name:'categoria',label:'Categoría',required:true},{name:'precioVenta',label:'Precio de venta MXN',type:'number',min:0,required:true},{name:'imagenUri',label:'URL HTTPS de imagen (opcional)',type:'url'}]} onClose={()=>setEdit(null)} onSave={v=>saveProduct(uid,v,edit.row)}/>;
+      case 'stock': return <EditForm title={'Ajustar stock · '+edit.row.nombre} defaults={{stockActual:edit.stock?.stockActual??0,stockMinimo:edit.stock?.stockMinimo??0}} fields={[{name:'stockActual',label:'Unidades disponibles',type:'number',min:0,required:true},{name:'stockMinimo',label:'Mínimo permitido',type:'number',min:0,required:true}]} onClose={()=>setEdit(null)} onSave={v=>saveStock(uid,edit.row,v.stockActual,v.stockMinimo)}/>;
+      case 'provider': return <EditForm title={edit.row?'Editar proveedor':'Nuevo proveedor'} defaults={{nombre:edit.row?.nombre||'',empresa:edit.row?.empresa||'',codigoPais:edit.row?.codigoPais||'+52',telefono:edit.row?.telefono||''}} fields={[{name:'nombre',label:'Nombre',required:true},{name:'empresa',label:'Empresa'},{name:'codigoPais',label:'Clave país'},{name:'telefono',label:'Teléfono'}]} onClose={()=>setEdit(null)} onSave={v=>saveProvider(uid,v,edit.row)}/>;
+      case 'offer': return <OfferEditor edit={edit} uid={uid} close={()=>setEdit(null)}/>;
+      case 'settings': return <EditForm title="Ajustes generales" defaults={{telefonoContacto:edit.row.telefonoContacto||'',notificacionesActivas:edit.row.notificacionesActivas?'1':'0',notificacionesStock:edit.row.notificacionesStock?'1':'0'}} fields={[{name:'telefonoContacto',label:'Teléfono de contacto'},{name:'notificacionesActivas',label:'Notificaciones (1=Sí, 0=No)'},{name:'notificacionesStock',label:'Avisos por stock (1=Sí, 0=No)'}]} onClose={()=>setEdit(null)} onSave={v=>saveSettings(uid,{telefonoContacto:v.telefonoContacto,notificacionesActivas:v.notificacionesActivas==='1',notificacionesStock:v.notificacionesStock==='1'})}/>;
+      case 'spei': return <EditForm title="Configurar cuenta SPEI" defaults={{banco:edit.row.banco||'',titular:edit.row.titular||'',clabe:edit.row.clabe||''}} fields={[{name:'banco',label:'Banco',required:true},{name:'titular',label:'Titular de la cuenta',required:true},{name:'clabe',label:'CLABE de 18 dígitos',required:true}]} onClose={()=>setEdit(null)} onSave={v=>saveSpei(uid,v)}/>;
+      default: return null;
+    }
   };
 
   return <div className={'app-shell '+(selectedTheme.id==='oscuro'?'web-dark':'')} style={{'--accent':selectedTheme.accent,'--sidebar-color':selectedTheme.sidebar,'--page-background':selectedTheme.background}}>
