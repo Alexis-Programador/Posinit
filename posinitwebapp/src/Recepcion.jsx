@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { receiveMerchandiseBatch, money, when } from './data';
 
 function Field({label,children}) { return <label className="field"><span>{label}</span>{children}</label>; }
@@ -6,7 +6,7 @@ function SearchProduct({products,query,onSelect}) {
   const matches=products.filter(p=>(p.nombre||'').toLowerCase().includes(query.toLowerCase())||String(p.codigoBarras||'').includes(query)).slice(0,7);
   return <div className="receipt-results">{matches.map(p=>
     <button type="button" className="receipt-result" key={p.docId} onClick={()=>onSelect(p)}>
-      {p.imagenUri&&/^https:\/\//.test(p.imagenUri) ? <img src={p.imagenUri} alt="" loading="lazy" /> : <span>📦</span>}
+      {typeof p.imagenUri === 'string' && p.imagenUri.startsWith('https://') ? <img src={p.imagenUri} alt="" loading="lazy" /> : <span>📦</span>}
       <span><strong>{p.nombre}</strong><small>{p.codigoBarras} · {money(p.precioVenta)}</small></span>
       <strong>＋</strong>
     </button>)}
