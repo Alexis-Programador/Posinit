@@ -56,9 +56,9 @@ function Panel({ title, subtitle, action, children }) {
   </section>;
 }
 function Status({ feed }) {
-  if (feed.loading) return <div className="status-line">Cargando desde Firebase…</div>;
-  if (feed.error) return <div className="message error">Firestore: {feed.error}. Revisa la sesión y las reglas del negocio.</div>;
-  if (feed.fromCache) return <div className="message warn">Se muestran datos almacenados en este dispositivo. Esperando sincronización con Firebase.</div>;
+  if (feed.loading) return <div className="status-line">Cargando información…</div>;
+  if (feed.error) return <div className="message error">No se pudo sincronizar: {feed.error}.</div>;
+  if (feed.fromCache) return <div className="message warn">Se muestran datos almacenados en este dispositivo. Esperando sincronización con tu negocio.</div>;
   return null;
 }
 function Modal({ title, onClose, children }) {
@@ -86,7 +86,7 @@ function EditForm({ title, defaults, fields, onSave, onClose }) {
     <form onSubmit={submit} className="edit-form">
       {fields.map(f => <Field key={f.name} {...f} value={values[f.name]} onChange={change} />)}
       {error && <div className="message error">{error}</div>}
-      <div className="form-actions"><button type="button" onClick={onClose} className="btn ghost">Cancelar</button><button disabled={busy} type="submit" className="btn primary">{busy ? 'Guardando…' : 'Guardar en Firebase'}</button></div>
+      <div className="form-actions"><button type="button" onClick={onClose} className="btn ghost">Cancelar</button><button disabled={busy} type="submit" className="btn primary">{busy ? 'Guardando…' : 'Guardar cambios'}</button></div>
     </form>
   </Modal>;
 }
@@ -146,7 +146,7 @@ export default function App() {
     // No ocultar indefinidamente el acceso si Firebase Auth no responde.
     const authTimeout = setTimeout(() => {
       setAuthReady(true);
-      setAuthError('Firebase está tardando en responder. Revisa tu conexión o vuelve a iniciar sesión.');
+      setAuthError('El servidor está tardando en responder. Revisa tu conexión o vuelve a iniciar sesión.');
     }, 12000);
     let unsubscribeProfile = () => {};
     const unsubscribeAuth = onAuthStateChanged(auth, current => {
@@ -206,12 +206,12 @@ export default function App() {
     cajeros: cashiers, trabajadores: workers, roles, configuracion: settings, spei: settings,
   }[screen] || EMPTY;
   const navigate = name => { setScreen(name); setNavOpen(false); setSearch(''); setEdit(null); setNotice(''); setDetail(null); };
-  const notify = async job => { setNotice(''); try { await job(); setNotice('✅ Guardado en Firebase. Los dispositivos recibirán el cambio al sincronizarse.'); setEdit(null); } catch (e) { setNotice('❌ ' + (e.message || 'No se pudo guardar.')); } };
+  const notify = async job => { setNotice(''); try { await job(); setNotice('✅ Cambios guardados. Los dispositivos recibirán el cambio al sincronizarse.'); setEdit(null); } catch (e) { setNotice('❌ ' + (e.message || 'No se pudo guardar.')); } };
   const filtered = rows => rows.filter(v => Object.values(v).some(x => typeof x === 'string' && x.toLowerCase().includes(search.toLowerCase())));
 
   if (!authReady) return <div className="splash">🔵 Conectando POS Init…</div>;
   if (!owner) return <Login />;
-  if (!profile) return <div className="splash"><div className="restricted"><h2>🔐 Verificación del propietario</h2><p>{authError || 'Buscando tu negocio en Firebase…'}</p><button className="btn primary" onClick={() => signOut(auth)}>Salir</button></div></div>;
+  if (!profile) return <div className="splash"><div className="restricted"><h2>🔐 Verificación del propietario</h2><p>{authError || 'Buscando tu negocio…'}</p><button className="btn primary" onClick={() => signOut(auth)}>Salir</button></div></div>;
 
   const rowTable = (data, columns, sortKey = 'fechaHora') => {
     const rows = filtered(data.rows).sort((a,b) => Number(b[sortKey] || 0)-Number(a[sortKey] || 0));
@@ -303,7 +303,7 @@ export default function App() {
         return <Panel title="POS Init Pay · SPEI" subtitle="Datos bancarios utilizados por el punto de venta web"><Status feed={settings}/><div className="settings-grid"><div className="settings-item"><span>Banco</span><strong>{pay.banco||'No configurado'}</strong></div><div className="settings-item"><span>Titular</span><strong>{pay.titular||'No configurado'}</strong></div><div className="settings-item"><span>CLABE</span><strong>{pay.clabe?'•••• •••• •••• '+String(pay.clabe).slice(-4):'No configurada'}</strong></div><div className="settings-item"><span>Pagos con tarjeta</span><strong>Se administran por Stripe Connect</strong></div></div><button className="btn primary" onClick={()=>setEdit({type:'spei',row:pay})}>Configurar SPEI</button>
           <p className="message warn">Esta sección no confirma depósitos automáticamente. Siempre comprueba los movimientos reales en tu banco.</p></Panel>;
       }
-      case 'cuenta': return <Panel title="Mi negocio" subtitle="Cuenta principal registrada en POS Init"><div className="settings-grid"><div className="settings-item"><span>Empresa</span><strong>{profile.nombreEmpresa||profile.nombreNegocio||'—'}</strong></div><div className="settings-item"><span>Correo del propietario</span><strong>{owner.email}</strong></div><div className="settings-item"><span>Código del negocio</span><strong>{profile.businessId}</strong></div><div className="settings-item"><span>Proyecto Firebase</span><strong>ventas-d8342</strong></div></div><button className="btn outline" onClick={()=>sendPasswordResetEmail(auth,owner.email).then(()=>setNotice('Te enviamos un correo de recuperación.')).catch(e=>setNotice(e.message))}>Solicitar cambio de contraseña</button></Panel>;
+      case 'cuenta': return <Panel title="Mi negocio" subtitle="Cuenta principal registrada en POS Init"><div className="settings-grid"><div className="settings-item"><span>Empresa</span><strong>{profile.nombreEmpresa||profile.nombreNegocio||'—'}</strong></div><div className="settings-item"><span>Correo del propietario</span><strong>{owner.email}</strong></div><div className="settings-item"><span>Código del negocio</span><strong>{profile.businessId}</strong></div><div className="settings-item"><span>Sincronización</span><strong>Activada</strong></div></div><button className="btn outline" onClick={()=>sendPasswordResetEmail(auth,owner.email).then(()=>setNotice('Te enviamos un correo de recuperación.')).catch(e=>setNotice(e.message))}>Solicitar cambio de contraseña</button></Panel>;
       case 'clientes': return <Panel title="Clientes" subtitle="Función disponible en Android"><p>El ZIP móvil utiliza una base local Room para clientes. No encontré una colección equivalente en las reglas compartidas de Firestore. Para evitar inventar información, esta pantalla no muestra datos ni los sincroniza todavía.</p><div className="message warn">Se requiere una migración segura de clientes locales antes de habilitar este módulo web.</div></Panel>;
       default: return null;
     }
