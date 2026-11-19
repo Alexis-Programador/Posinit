@@ -122,8 +122,14 @@ export default function App() {
   const [detail, setDetail] = useState(null);
 
   useEffect(() => {
+    // No ocultar indefinidamente el acceso si Firebase Auth no responde.
+    const authTimeout = setTimeout(() => {
+      setAuthReady(true);
+      setAuthError('Firebase está tardando en responder. Revisa tu conexión o vuelve a iniciar sesión.');
+    }, 12000);
     let unsubscribeProfile = () => {};
     const unsubscribeAuth = onAuthStateChanged(auth, current => {
+      clearTimeout(authTimeout);
       unsubscribeProfile(); unsubscribeProfile = () => {};
       setAuthReady(true); setAuthError(''); setProfile(null);
       if (!current || current.isAnonymous) { setOwner(null); return; }
@@ -135,7 +141,7 @@ export default function App() {
         setProfile({ ...data, uid: current.uid }); setAuthError('');
       }, error => { setProfile(null); setAuthError('No se pudo verificar el negocio: ' + error.message); });
     });
-    return () => { unsubscribeAuth(); unsubscribeProfile(); };
+    return () => { clearTimeout(authTimeout); unsubscribeAuth(); unsubscribeProfile(); };
   }, []);
 
   const uid = profile?.uid || '';
