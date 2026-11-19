@@ -5,7 +5,7 @@ function dateMs(value) {
   if (!value) return 0;
   if (typeof value.toMillis === 'function') return value.toMillis();
   if (typeof value.toDate === 'function') return value.toDate().getTime();
-  if (typeof value === 'string' && isNaN(Number(value))) return Date.parse(value) || 0;
+  if (typeof value === 'string' && Number.isNaN(Number(value))) return Date.parse(value) || 0;
   return Number(value) || 0;
 }
 const integer = value => Number(value || 0);
@@ -31,7 +31,7 @@ function Bars({ title, rows, format = String }) {
 function timestampOf(item) { return dateMs(item.fechaHora || item.fecha || item.creadoEn || item.fechaActualizacion); }
 function getRange(period, anchor) {
   const start = new Date(anchor+'T00:00:00');
-  if (isNaN(start.getTime())) start.setTime(Date.now());
+  if (Number.isNaN(start.getTime())) start.setTime(Date.now());
   if (period==='Semana') start.setDate(start.getDate()-((start.getDay()+6)%7));
   if (period==='Mes') start.setDate(1);
   if (period==='Año') {start.setMonth(0);start.setDate(1);}
@@ -53,6 +53,61 @@ function shiftDate(ms,period,delta) {
   return [d.getFullYear(),String(d.getMonth()+1).padStart(2,'0'),String(d.getDate()).padStart(2,'0')].join('-');
 }
 
+function salesBreakdown(current, productNames) {
+  const ranking = new Map(), categories = new Map(), payment = new Map(), cashiers = new Map();
+  for (const sale of current) {
+    const total = integer(sale.total);
+    const method = sale.metodoPago || 'Sin clasificar';
+    payment.set(method, (payment.get(method) || 0) + total);
+    const cashier = sale.nombreUsuario || 'Sin usuario';
+    cashiers.set(cashier, (cashiers.get(cashier) || 0) + total);
+    const lineItems = Array.isArray(sale.productos) ? sale.productos : [];
+    for (const item of lineItems) {
+      const product = productNames.get(String(item.productoId || item.id));
+      const name = item.nombre || product?.nombre || 'Artículo';
+      const count = integer(item.cantidad);
+      ranking.set(name, (ranking.get(name) || 0) + count);
+      const category = product?.categoria || 'Sin categoría';
+      const partial = Number.isFinite(Number(item.subtotal))
+        ? Number(item.subtotal) : count * integer(item.precio);
+      categories.set(category, (categories.get(category) || 0) + partial);
+    }
+  }
+  return { ranking, categories, payment, cashiers };
+}
+function numberOfChartBars(period, length) {
+  if (period === 'Día') return 24;
+  if (period === 'Año') return 12;
+  if (period === 'Semana') return 7;
+  return Math.max(28, Math.round(length / 86400000));
+}
+function chartForPeriod(current, period, start, length) {
+  const chart = [];
+  const barCount = numberOfChartBars(period, length);
+  for (let i = 0; i < barCount; i++) {
+    let a, b, label;
+    if (period === 'Día') {
+      a = start + i * 3600000; b = a + 3600000;
+      label = String(i).padStart(2, '0') + 'h';
+    } else if (period === 'Año') {
+      a = new Date(new Date(start).getFullYear(), i, 1).getTime();
+      b = new Date(new Date(start).getFullYear(), i + 1, 1).getTime();
+      label = new Date(a).toLocaleDateString('es-MX', { month: 'short' });
+    } else {
+      a = new Date(start);
+      a.setDate(a.getDate() + i);
+      a = a.getTime();
+      b = new Date(a);
+      b.setDate(b.getDate() + 1);
+      label = new Date(a).toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit' });
+    }
+    const value = current.filter(s => timestampOf(s) >= a && timestampOf(s) < b)
+      .reduce((v, s) => v + integer(s.total), 0);
+    chart.push({ label, value });
+  }
+  return chart;
+}
+
 export function AdvancedStats({ sales, products, inventory, received, robberies }) {
   const [period,setPeriod]=useState('Mes');
   const [anchor,setAnchor]=useState(()=>new Date().toLocaleDateString('en-CA'));
@@ -63,32 +118,10 @@ export function AdvancedStats({ sales, products, inventory, received, robberies 
     const previous=sales.filter(x=>timestampOf(x)>=start-length && timestampOf(x)<start);
     const incomes=sum(current,'total'), before=sum(previous,'total');
     const productNames=new Map(products.map(x=>[String(x.id||x.docId),x]));
-    const ranking=new Map(), categories=new Map(), payment=new Map(), cashiers=new Map();
-    for(const s of current){
-      const total=integer(s.total), method=s.metodoPago||'Sin clasificar';
-      payment.set(method,(payment.get(method)||0)+total);
-      cashiers.set(s.nombreUsuario||'Sin usuario',(cashiers.get(s.nombreUsuario||'Sin usuario')||0)+total);
-      for(const item of (Array.isArray(s.productos)?s.productos:[])){
-        const prod=productNames.get(String(item.productoId||item.id));
-        const name=item.nombre || prod?.nombre || 'Artículo';
-        const count=integer(item.cantidad);
-        ranking.set(name,(ranking.get(name)||0)+count);
-        const category=prod?.categoria||'Sin categoría';
-        const partial=Number.isFinite(Number(item.subtotal))?Number(item.subtotal):count*integer(item.precio);
-        categories.set(category,(categories.get(category)||0)+partial);
-      }
-    }
+    const { ranking, categories, payment, cashiers } = salesBreakdown(current, productNames);
     const periodReceipts=received.filter(r=>timestampOf(r)>=start && timestampOf(r)<end);
     const periodRobberies=robberies.filter(r=>timestampOf(r)>=start && timestampOf(r)<end);
-    const chart=[];
-    const barCount=period==='Día'?24:period==='Año'?12:period==='Semana'?7:Math.max(28,Math.round(length/86400000));
-    for(let i=0;i<barCount;i++){
-      let a,b,label;
-      if(period==='Día'){a=start+i*3600000;b=a+3600000;label=String(i).padStart(2,'0')+'h';}
-      else if(period==='Año'){a=new Date(new Date(start).getFullYear(),i,1).getTime();b=new Date(new Date(start).getFullYear(),i+1,1).getTime();label=new Date(a).toLocaleDateString('es-MX',{month:'short'});}
-      else {a=new Date(start);a.setDate(a.getDate()+i);a=a.getTime();b=new Date(a);b.setDate(b.getDate()+1);b=b.getTime();label=new Date(a).toLocaleDateString('es-MX',{day:'2-digit',month:'2-digit'});}
-      chart.push({label,value:current.filter(s=>timestampOf(s)>=a&&timestampOf(s)<b).reduce((v,s)=>v+integer(s.total),0)});
-    }
+    const chart = chartForPeriod(current, period, start, length);
     const stocks=inventory.filter(x=>products.some(p=>String(p.id||p.docId)===String(x.productoId||x.docId)));
     const inventoryValue=stocks.reduce((v,x)=>v+integer(x.stockActual)*integer(productNames.get(String(x.productoId||x.docId))?.precioVenta),0);
     return {
