@@ -30,6 +30,12 @@ export function assertOwner(uid) {
   }
 }
 
+function newNumericId() {
+  const values = new Uint32Array(1);
+  crypto.getRandomValues(values);
+  return String(100000000 + (values[0] % 1800000000));
+}
+
 const asInt = v => Number.isInteger(Number(v)) && Number(v) >= 0 && Number(v) <= 2000000000;
 const safeText = (value, limit = 120) => String(value ?? '').trim().slice(0, limit);
 const num = v => Number(v ?? 0);
@@ -38,7 +44,7 @@ const num = v => Number(v ?? 0);
 // exigida por las reglas Firestore del proyecto.
 export async function saveProduct(uid, input, existing = null) {
   assertOwner(uid);
-  const id = existing?.docId || String(Math.floor(Math.random() * 1800000000) + 100000000);
+  const id = existing?.docId || newNumericId();
   const nombre = safeText(input.nombre), codigoBarras = safeText(input.codigoBarras, 90);
   const categoria = safeText(input.categoria);
   const precioVenta = num(input.precioVenta);
@@ -94,7 +100,7 @@ export async function saveProvider(uid, input, previous = null) {
   assertOwner(uid);
   const nombre = safeText(input.nombre);
   if (!nombre) throw new Error('Escribe el nombre del proveedor.');
-  const id = previous?.docId || String(Math.floor(Math.random() * 1800000000) + 100000000);
+  const id = previous?.docId || newNumericId();
   const ref = doc(db, 'usuarios', uid, 'proveedores', id);
   const fields = {
     id: Number(id), nombre, codigoPais: safeText(input.codigoPais, 10),
@@ -180,22 +186,20 @@ export async function receiveMerchandiseBatch(uid, cart, provider = '') {
     producto: p,
     productRef: doc(db, 'usuarios', uid, 'productos', String(p.docId)),
     stockRef: doc(db, 'usuarios', uid, 'inventario', String(p.docId)),
-    recordId: String(Math.floor(Math.random() * 1900000000) + 100000000),
+    recordId: newNumericId(),
   }));
   const batchIds = items.map(x=>x.recordId);
   if(new Set(batchIds).size !== batchIds.length) throw new Error('No se generaron folios únicos. Intenta de nuevo.');
   const now = Date.now();
   const result = await runTransaction(db, async tx => {
-    const data = [];
-    for (const item of items) {
-      const recordRef=doc(db,'usuarios',uid,'registrosMercancia',item.recordId);
-      data.push({
-        ...item,recordRef,
-        product:await tx.get(item.productRef),
-        stock:await tx.get(item.stockRef),
-        existing:await tx.get(recordRef),
-      });
-    }
+    // Resolver lecturas en paralelo; ninguna escritura comienza hasta terminarlas.
+    const data = await Promise.all(items.map(async item => {
+      const recordRef = doc(db, 'usuarios', uid, 'registrosMercancia', item.recordId);
+      const [product, stock, existing] = await Promise.all([
+        tx.get(item.productRef), tx.get(item.stockRef), tx.get(recordRef),
+      ]);
+      return { ...item, recordRef, product, stock, existing };
+    }));
     for (const item of data) {
       if(!item.product.exists()) throw new Error('No existe el producto '+item.producto.nombre+'. Actualiza el catálogo.');
       if(item.existing.exists()) throw new Error('Folio duplicado. Vuelve a intentarlo.');
