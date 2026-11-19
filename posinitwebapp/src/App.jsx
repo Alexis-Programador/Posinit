@@ -170,7 +170,7 @@ export default function App() {
   const todaySales = sales.rows.filter(r => new Date(Number(r.fechaHora || 0)).toLocaleDateString('es-MX') === today);
   const todayRevenue = todaySales.reduce((a, v) => a + Number(v.total || 0), 0);
   const activeFeed = {
-    inicio: sales, productos, inventario, ofertas, proveedores, mercancia: received, robos: robberies,
+    inicio: sales, productos: products, inventario: inventory, ofertas: offers, proveedores: providers, mercancia: received, robos: robberies,
     ventas: sales, retiros: cashOuts, cortes: cuts, cierres: closings,
     cajeros: cashiers, trabajadores: workers, roles, configuracion: settings, spei: settings,
   }[screen] || EMPTY;
