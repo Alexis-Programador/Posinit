@@ -8,7 +8,9 @@ import {
 } from './data';
 import MerchandiseReceipt from './Recepcion';
 import { DailySales, LossRegister } from './ExtraScreens';
-import { AdvancedStats, AppearancePanel, CategorySummary, themeById } from './MobileFeatures';
+import { AdvancedStats, AppearancePanel, themeById } from './MobileFeatures';
+import ProductEditor from './ProductEditor';
+import { CategoriesScreen, OffersScreen } from './CategoriesOffers';
 
 const NAV = [
   { title: 'Panel principal', children: [['inicio', '🏠', 'Resumen en vivo']] },
@@ -132,6 +134,8 @@ export default function App() {
     catch { return 'cover'; }
   });
   const [themeBusy, setThemeBusy] = useState(false);
+  const [premiumEnabled, setPremiumEnabled] = useState(false);
+  const [benefitError, setBenefitError] = useState('');
   const changeFit = () => setImageFit(old => {
     const next=old==='cover'?'contain':'cover';
     try {localStorage.setItem('posinit-web-image-fit',next);} catch {}
@@ -162,7 +166,14 @@ export default function App() {
   }, []);
 
   const uid = profile?.uid || '';
+  useEffect(() => {
+    if (!uid) { setPremiumEnabled(false); setBenefitError(''); return; }
+    return onSnapshot(doc(db, 'usuarios', uid, 'beneficios', 'premium'),
+      snapshot => { setPremiumEnabled(snapshot.exists() && snapshot.data()?.colores === true); setBenefitError(''); },
+      error => { setPremiumEnabled(false); setBenefitError(error.message); });
+  }, [uid]);
   const products = useLive(uid, 'productos');
+  const categories = useLive(uid, 'categorias');
   const inventory = useLive(uid, 'inventario');
   const sales = useLive(uid, 'ventas', ['inicio','ventas','ventasHoy','cajaDia','reportes','cuenta'].includes(screen));
   const providers = useLive(uid, 'proveedores', ['proveedores','mercancia'].includes(screen));
@@ -178,10 +189,11 @@ export default function App() {
   const settings = useLive(uid, 'configuracion');
   const generalConfig = settings.rows.find(x=>x.docId==='general')||{};
   const webConfig = settings.rows.find(x=>x.docId==='webApp')||{};
-  const selectedTheme = themeById(webConfig.temaWeb);
+  const configuredTheme = themeById(webConfig.temaWeb);
+  const selectedTheme = configuredTheme.premium && !premiumEnabled
+    ? themeById('azul') : configuredTheme;
 
   const stock = useMemo(() => new Map(inventory.rows.map(r => [r.docId, r])), [inventory.rows]);
-  const offerMap = useMemo(() => new Map(offers.rows.map(r => [r.docId, r])), [offers.rows]);
   const low = useMemo(() => products.rows.filter(p => {
     const inv = stock.get(p.docId); return inv && Number(inv.stockActual || 0) <= Number(inv.stockMinimo || 0);
   }), [products.rows, stock]);
@@ -243,11 +255,7 @@ export default function App() {
           {filtered(products.rows).map(p => { const st=stock.get(p.docId);const lowFlag=st && Number(st.stockActual || 0)<=Number(st.stockMinimo||0);return <tr key={p.docId}><td><strong>{p.nombre}</strong><small>{p.codigoBarras}</small></td><td>{st?.stockActual ?? 0}</td><td>{st?.stockMinimo ?? 0}</td><td><span className={'chip '+(lowFlag?'danger':'success')}>{lowFlag?'Stock bajo':'Disponible'}</span></td><td><button className="btn small outline" onClick={()=>setEdit({type:'stock',row:p,stock:st})}>Ajustar</button></td></tr> })}
         </tbody></table></div>
       </Panel>;
-      case 'ofertas': return <Panel title="Ofertas y promociones" subtitle="Configura descuentos sobre los productos existentes">
-        <Status feed={offers}/><div className="table-wrap"><table><thead><tr><th>Producto</th><th>Precio normal</th><th>Oferta</th><th>Estado</th><th>Acción</th></tr></thead><tbody>
-          {filtered(products.rows).map(p => {const offer=offerMap.get(p.docId);return <tr key={p.docId}><td>{p.nombre}</td><td>{money(p.precioVenta)}</td><td>{offer?.activa?money(offer.precioOferta):'—'}</td><td><span className={'chip '+(offer?.activa?'success':'neutral')}>{offer?.activa?'Activa':'Sin oferta'}</span></td><td><button className="btn small outline" onClick={()=>setEdit({type:'offer',row:p,offer})}>Configurar</button></td></tr>})}
-        </tbody></table></div>
-      </Panel>;
+      case 'ofertas': return <><Status feed={products}/><Status feed={offers}/><OffersScreen uid={uid} products={products.rows} offers={offers.rows} search={search} onEdit={(row,offer)=>setEdit({type:'offer',row,offer})}/></>;
       case 'proveedores': return <Panel title="Proveedores" subtitle="Directorio compartido con la aplicación móvil" action={<button className="btn primary" onClick={()=>setEdit({type:'provider',row:null})}>+ Nuevo proveedor</button>}>
         {rowTable(providers,[['Nombre',x=>x.nombre],['Empresa',x=>x.empresa||'—'],['Teléfono',x=>[x.codigoPais,x.telefono].filter(Boolean).join(' ')||'—'],['',x=><button className="btn small outline" onClick={e=>{e.stopPropagation();setEdit({type:'provider',row:x});}}>Editar</button>]],'fechaActualizacion')}
       </Panel>;
@@ -282,9 +290,9 @@ export default function App() {
         {rowTable(roles,[['Rol',x=>x.nombre||x.docId],['Permisos de lectura',x=>Object.keys(x.ver||{}).filter(k=>x.ver?.[k]).length],['Permisos de edición',x=>Object.keys(x.editar||{}).filter(k=>x.editar?.[k]).length]],'fechaActualizacion')}
       </Panel>;
       case 'reportes': return <><Status feed={sales}/><Status feed={received}/><Status feed={robberies}/><AdvancedStats sales={sales.rows} products={products.rows} inventory={inventory.rows} received={received.rows} robberies={robberies.rows}/></>;
-      case 'categorias': return <CategorySummary products={products.rows} onProducts={()=>navigate('productos')}/>;
+      case 'categorias': return <CategoriesScreen uid={uid} products={products.rows} categories={categories.rows} loading={categories.loading} error={categories.error}/>;
       case 'existencias': return <Panel title="Estado de existencias" subtitle="Productos agotados, en mínimo y disponibles, actualizados en tiempo real"><Status feed={products}/><Status feed={inventory}/><div className="table-wrap"><table><thead><tr><th>Producto</th><th>Categoría</th><th>Unidades</th><th>Mínimo</th><th>Estado</th></tr></thead><tbody>{[...products.rows].sort((a,b)=>Number(stock.get(a.docId)?.stockActual||0)-Number(stock.get(b.docId)?.stockActual||0)).map(p=>{const st=stock.get(p.docId)||{};const n=Number(st.stockActual||0),min=Number(st.stockMinimo||0);return <tr key={p.docId}><td><strong>{p.nombre}</strong><small>{p.codigoBarras}</small></td><td>{p.categoria||'Sin categoría'}</td><td>{n}</td><td>{min}</td><td><span className={'chip '+(n<=min?'danger':'success')}>{stockStatusLabel(n, min)}</span></td></tr>})}</tbody></table></div></Panel>;
-      case 'colores': return <><Status feed={settings}/><AppearancePanel theme={selectedTheme.id} mobileTheme={generalConfig.tema} mobileAccent={generalConfig.colorPrincipal} busy={themeBusy} onSave={async next=>{setThemeBusy(true);try{await saveWebTheme(uid,next);setNotice('✅ Tema web guardado en Firebase.');}catch(e){setNotice('❌ '+e.message);}finally{setThemeBusy(false);}}}/></>;
+      case 'colores': return <><Status feed={settings}/><AppearancePanel theme={selectedTheme.id} mobileTheme={generalConfig.colorPrincipal} mobileAccent={generalConfig.colorIconos} premiumEnabled={premiumEnabled} benefitError={benefitError} busy={themeBusy} onSave={async next=>{setThemeBusy(true);try{await saveWebTheme(uid,next);setNotice('✅ Color aplicado a la web.');}catch(e){setNotice('❌ '+e.message);}finally{setThemeBusy(false);}}}/></>;
       case 'configuracion': {
         const general = settings.rows.find(x=>x.docId==='general') || {};
         return <Panel title="Configuración del negocio" subtitle="Ajustes compartidos con Android e iOS"><Status feed={settings}/><div className="settings-grid"><div className="settings-item"><span>Teléfono de contacto</span><strong>{general.telefonoContacto||'Sin configurar'}</strong></div><div className="settings-item"><span>Notificaciones</span><strong>{general.notificacionesActivas?'Activadas':'Desactivadas'}</strong></div><div className="settings-item"><span>Alertas por stock</span><strong>{general.notificacionesStock?'Activadas':'Desactivadas'}</strong></div><div className="settings-item"><span>Tema de la aplicación</span><strong>{general.tema||'Predeterminado'}</strong></div></div>
@@ -304,7 +312,7 @@ export default function App() {
   const editor = () => {
     if (!edit) return null;
     switch (edit.type) {
-      case 'product': return <EditForm key={edit.row?.docId||'new'} title={edit.row?'Editar producto':'Nuevo producto'} defaults={{nombre:edit.row?.nombre||'',codigoBarras:edit.row?.codigoBarras||'',categoria:edit.row?.categoria||'',precioVenta:edit.row?.precioVenta??'',imagenUri: String(edit.row?.imagenUri || '').startsWith('https://') ? edit.row.imagenUri : ''}} fields={[{name:'nombre',label:'Nombre',required:true},{name:'codigoBarras',label:'Código de barras',required:true},{name:'categoria',label:'Categoría',required:true},{name:'precioVenta',label:'Precio de venta MXN',type:'number',min:0,required:true},{name:'imagenUri',label:'URL HTTPS de imagen (opcional)',type:'url'}]} onClose={()=>setEdit(null)} onSave={v=>saveProduct(uid,v,edit.row)}/>;
+      case 'product': return <ProductEditor key={edit.row?.docId || 'new'} product={edit.row} uid={uid} products={products.rows} categories={categories.rows} onSaved={setNotice} onClose={()=>setEdit(null)}/>;
       case 'stock': return <EditForm title={'Ajustar stock · '+edit.row.nombre} defaults={{stockActual:edit.stock?.stockActual??0,stockMinimo:edit.stock?.stockMinimo??0}} fields={[{name:'stockActual',label:'Unidades disponibles',type:'number',min:0,required:true},{name:'stockMinimo',label:'Mínimo permitido',type:'number',min:0,required:true}]} onClose={()=>setEdit(null)} onSave={v=>saveStock(uid,edit.row,v.stockActual,v.stockMinimo)}/>;
       case 'provider': return <EditForm title={edit.row?'Editar proveedor':'Nuevo proveedor'} defaults={{nombre:edit.row?.nombre||'',empresa:edit.row?.empresa||'',codigoPais:edit.row?.codigoPais||'+52',telefono:edit.row?.telefono||''}} fields={[{name:'nombre',label:'Nombre',required:true},{name:'empresa',label:'Empresa'},{name:'codigoPais',label:'Clave país'},{name:'telefono',label:'Teléfono'}]} onClose={()=>setEdit(null)} onSave={v=>saveProvider(uid,v,edit.row)}/>;
       case 'offer': return <OfferEditor edit={edit} uid={uid} close={()=>setEdit(null)}/>;
@@ -314,7 +322,7 @@ export default function App() {
     }
   };
 
-  return <div className={'app-shell '+(selectedTheme.id==='oscuro'?'web-dark':'')} style={{'--accent':selectedTheme.accent,'--sidebar-color':selectedTheme.sidebar,'--page-background':selectedTheme.background}}>
+  return <div className={'app-shell '+(selectedTheme.id==='negro'?'web-dark':'')} style={{'--accent':selectedTheme.accent,'--sidebar-color':selectedTheme.sidebar,'--page-background':selectedTheme.background}}>
     {navOpen && <button className="nav-backdrop" onClick={()=>setNavOpen(false)} aria-label="Cerrar menú"/>}
     <aside className={'sidebar '+(navOpen?'open':'')}><div className="sidebar-brand"><div className="logo">P</div><span><strong>POS Init</strong><small>WEB APP · ADMIN</small></span></div>
       <div className="business-chip"><div className="business-avatar">🏪</div><div><strong>{profile.nombreEmpresa||profile.nombreNegocio||'Mi negocio'}</strong><small>Propietario · {profile.businessId}</small></div></div>
@@ -324,10 +332,10 @@ export default function App() {
     <main className="main-area">
       <header className="topbar"><div className="left-top"><button className="menu-button" onClick={()=>setNavOpen(true)} aria-label="Abrir menú">☰</button><div><span className="crumb">POSInitWebApp / Administración</span><h2>{SECTION_NAME[screen]}</h2></div></div><div className="top-actions"><span className="online-pill">● En tiempo real</span><div className="user-circle" title={owner.email}>{owner.email?.charAt(0).toUpperCase()}</div></div></header>
       <div className="page-content">
-        {!['inicio','reportes','configuracion','spei','cuenta','clientes','etiquetas'].includes(screen) && <div className="search-row"><label className="search-input">⌕ <input placeholder={'Buscar en '+SECTION_NAME[screen]?.toLowerCase()+'...'} value={search} onChange={e=>setSearch(e.target.value)}/></label><span className="sync-label">🔄 Firestore: {activeFeed.error?'Error':activeFeed.fromCache?'Caché local':'En vivo'}</span></div>}
+        {!['inicio','reportes','configuracion','spei','cuenta','clientes','etiquetas'].includes(screen) && <div className="search-row"><label className="search-input">⌕ <input placeholder={'Buscar en '+SECTION_NAME[screen]?.toLowerCase()+'...'} value={search} onChange={e=>setSearch(e.target.value)}/></label><span className="sync-label">🔄 {activeFeed.error?'Sin conexión':activeFeed.fromCache?'Sincronización pendiente':'Sincronizado'}</span></div>}
         {notice && <div role="status" className="message info">{notice}</div>}
         {content()}
-        <div className="bottom-note">POSInitWebApp · Sesión privada del propietario · Android / iOS / Web · <strong>Firebase ventas-d8342</strong></div>
+        <div className="bottom-note">POSInitWebApp · Administración privada · Android / iOS / Web</div>
       </div>
     </main>
     {editor()}
@@ -339,11 +347,11 @@ function OfferEditor({ edit, uid, close }) {
   const [price,setPrice] = useState(edit.offer?.precioOferta || '');
   const [busy,setBusy] = useState(false);
   const [error,setError] = useState('');
-  const run = async job => {setBusy(true);setError('');try{await job();close();}catch(e){setError(e.message||'Error en Firebase');}finally{setBusy(false);}};
+  const run = async job => {setBusy(true);setError('');try{await job();close();}catch(e){setError(e.message||'No se pudo guardar.');}finally{setBusy(false);}};
   return <Modal title={'Oferta · '+edit.row.nombre} onClose={close}>
     <p>Precio normal: <strong>{money(edit.row.precioVenta)}</strong></p><label className="field"><span>Precio especial</span><input type="number" min="0.01" step="0.01" value={price} onChange={e=>setPrice(e.target.value)}/></label>
     {error && <div className="message error">{error}</div>}
-    <div className="form-actions"><button className="btn ghost" onClick={close}>Cancelar</button>{edit.offer?.activa&&<button disabled={busy} className="btn danger-button" onClick={()=>run(()=>disableOffer(uid,edit.row))}>Desactivar</button>}<button disabled={busy} className="btn primary" onClick={()=>run(()=>saveOffer(uid,edit.row,price))}>{busy?'Guardando…':'Guardar oferta'}</button></div>
+    <div className="form-actions"><button className="btn ghost" onClick={close}>Cancelar</button>{edit.offer?.activa&&<button disabled={busy} className="btn danger-button" onClick={()=>run(()=>disableOffer(uid,edit.row))}>Eliminar oferta</button>}<button disabled={busy} className="btn primary" onClick={()=>run(()=>saveOffer(uid,edit.row,price))}>{busy?'Guardando…':'Guardar oferta'}</button></div>
   </Modal>;
 }
 function numDate(x) { const v=x?.fechaHora;return typeof v?.toMillis==='function'?v.toMillis():Number(v||0); }
