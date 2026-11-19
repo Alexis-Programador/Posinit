@@ -1,0 +1,27 @@
+name: Validar POSInitWebApp
+
+on:
+  pull_request:
+    paths:
+      - 'posinitwebapp/**'
+      - '.github/workflows/validate-posinitwebapp.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validar:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Descargar codigo
+        uses: actions/checkout@v4
+      - name: Configurar Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Instalar dependencias
+        run: npm ci
+      - name: Compilar panel administrativo
+        run: npx vite build --config posinitwebapp/vite.config.js
