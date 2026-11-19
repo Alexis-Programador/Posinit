@@ -4,13 +4,15 @@ import { doc, onSnapshot } from 'firebase/firestore';
 import { auth, db } from './firebase';
 import {
   useLive, money, when, csvDownload, saveProduct, saveStock,
-  saveProvider, saveOffer, disableOffer, saveSettings, saveSpei,
+  saveProvider, saveOffer, disableOffer, saveSettings, saveSpei, saveWebTheme,
 } from './data';
+import MerchandiseReceipt from './Recepcion';
+import { AdvancedStats, AppearancePanel, CategorySummary, themeById } from './MobileFeatures';
 
 const NAV = [
   { title: 'Panel principal', children: [['inicio', '🏠', 'Resumen en vivo']] },
   { title: 'Operación diaria', children: [
-    ['productos', '📦', 'Productos'], ['inventario', '🧮', 'Inventario'], ['ofertas', '🏷️', 'Ofertas'],
+    ['productos', '📦', 'Productos'], ['categorias', '🏷️', 'Categorías'], ['inventario', '🧮', 'Inventario'], ['existencias', '📊', 'Estado de existencias'], ['ofertas', '🏷️', 'Ofertas'],
     ['proveedores', '🚚', 'Proveedores'], ['mercancia', '📥', 'Mercancía'], ['robos', '🛡️', 'Registros de robo'],
     ['etiquetas', '🏷️', 'Etiquetas PDF'],
   ] },
@@ -23,7 +25,7 @@ const NAV = [
     ['cajeros', '👤', 'Usuarios / cajeros'], ['trabajadores', '👥', 'Trabajadores'], ['roles', '🔐', 'Roles y permisos'],
   ] },
   { title: 'Administración', children: [
-    ['configuracion', '⚙️', 'Configuración'], ['spei', '🏦', 'POS Init Pay / SPEI'],
+    ['configuracion', '⚙️', 'Configuración'], ['colores', '🎨', 'Colores de la web'], ['spei', '🏦', 'POS Init Pay / SPEI'],
     ['cuenta', '🏢', 'Mi negocio'], ['clientes', '📇', 'Clientes'],
   ] },
 ];
@@ -120,6 +122,16 @@ export default function App() {
   const [edit, setEdit] = useState(null);
   const [notice, setNotice] = useState('');
   const [detail, setDetail] = useState(null);
+  const [imageFit, setImageFit] = useState(() => {
+    try { return localStorage.getItem('posinit-web-image-fit') === 'contain' ? 'contain' : 'cover'; }
+    catch { return 'cover'; }
+  });
+  const [themeBusy, setThemeBusy] = useState(false);
+  const changeFit = () => setImageFit(old => {
+    const next=old==='cover'?'contain':'cover';
+    try {localStorage.setItem('posinit-web-image-fit',next);} catch {}
+    return next;
+  });
 
   useEffect(() => {
     // No ocultar indefinidamente el acceso si Firebase Auth no responde.
@@ -150,15 +162,18 @@ export default function App() {
   const sales = useLive(uid, 'ventas', ['inicio','ventas','reportes','cuenta'].includes(screen));
   const providers = useLive(uid, 'proveedores', ['proveedores','mercancia'].includes(screen));
   const offers = useLive(uid, 'ofertas', screen === 'ofertas' || screen === 'inicio');
-  const received = useLive(uid, 'registrosMercancia', screen === 'mercancia');
-  const robberies = useLive(uid, 'robos', screen === 'robos');
+  const received = useLive(uid, 'registrosMercancia', ['mercancia','reportes'].includes(screen));
+  const robberies = useLive(uid, 'robos', ['robos','reportes'].includes(screen));
   const cashOuts = useLive(uid, 'retirosCaja', ['retiros','reportes'].includes(screen));
   const cuts = useLive(uid, 'cortesCaja', screen === 'cortes');
   const closings = useLive(uid, 'cierresSesionCaja', screen === 'cierres');
   const cashiers = useLive(uid, 'usuariosSistema', screen === 'cajeros');
   const workers = useLive(uid, 'trabajadores', screen === 'trabajadores');
   const roles = useLive(uid, 'roles', screen === 'roles');
-  const settings = useLive(uid, 'configuracion', ['configuracion','spei'].includes(screen));
+  const settings = useLive(uid, 'configuracion');
+  const generalConfig = settings.rows.find(x=>x.docId==='general')||{};
+  const webConfig = settings.rows.find(x=>x.docId==='webApp')||{};
+  const selectedTheme = themeById(webConfig.temaWeb);
 
   const stock = useMemo(() => new Map(inventory.rows.map(r => [r.docId, r])), [inventory.rows]);
   const productMap = useMemo(() => new Map(products.rows.map(r => [r.docId, r])), [products.rows]);
@@ -212,9 +227,9 @@ export default function App() {
           </Panel>
         </div>
       </>;
-      case 'productos': return <Panel title="Catálogo de productos" subtitle="Alta y edición sincronizadas con Android e iOS" action={<button className="btn primary" onClick={() => setEdit({ type: 'product', row: null })}>+ Agregar producto</button>}>
+      case 'productos': return <Panel title="Catálogo de productos" subtitle="Imágenes grandes y fichas adaptadas al tamaño de tu pantalla" action={<div className="catalog-actions"><button className="btn outline" type="button" onClick={changeFit}>{imageFit==='cover'?'▣ Ajustar imagen':'▧ Llenar tarjeta'}</button><button className="btn primary" onClick={() => setEdit({ type: 'product', row: null })}>+ Agregar producto</button></div>}>
         <Status feed={products}/><div className="product-grid">{filtered(products.rows).sort((a,b)=>String(a.nombre).localeCompare(String(b.nombre))).map(p => <article key={p.docId} className="product-card">
-          <div className="product-image">{p.imagenUri && /^https:\/\//.test(p.imagenUri) ? <img src={p.imagenUri} alt={p.nombre}/> : '📦'}</div>
+          <div className="product-image">{p.imagenUri && /^https:\/\//.test(p.imagenUri) ? <img src={p.imagenUri} alt={p.nombre} loading="lazy" style={{objectFit:imageFit}}/> : '📦'}</div>
           <div><strong>{p.nombre}</strong><small>{p.codigoBarras} · {p.categoria}</small><b>{money(p.precioVenta)}</b><span className="mini-muted">Stock: {stock.get(p.docId)?.stockActual ?? '—'}</span></div>
           <button className="btn small outline" onClick={() => setEdit({ type:'product', row:p })}>Editar</button>
         </article>)}{!products.rows.length && <p className="muted">Sin productos registrados.</p>}</div>
@@ -232,9 +247,7 @@ export default function App() {
       case 'proveedores': return <Panel title="Proveedores" subtitle="Directorio compartido con la aplicación móvil" action={<button className="btn primary" onClick={()=>setEdit({type:'provider',row:null})}>+ Nuevo proveedor</button>}>
         {rowTable(providers,[['Nombre',x=>x.nombre],['Empresa',x=>x.empresa||'—'],['Teléfono',x=>[x.codigoPais,x.telefono].filter(Boolean).join(' ')||'—'],['',x=><button className="btn small outline" onClick={e=>{e.stopPropagation();setEdit({type:'provider',row:x});}}>Editar</button>]],'fechaActualizacion')}
       </Panel>;
-      case 'mercancia': return <Panel title="Recepción de mercancía" subtitle="Historial de entradas registradas desde la app móvil. Solo lectura para evitar duplicar existencias.">
-        {rowTable(received,[['Producto',x=>x.producto||productMap.get(String(x.productoId))?.nombre||'—'],['Cantidad',x=>x.cantidadRecibida],['Antes / después',x=>`${x.stockAnterior} → ${x.stockResultante}`],['Proveedor',x=>x.proveedor||'—'],['Fecha',x=>when(x.fechaHora)]])}
-      </Panel>;
+      case 'mercancia': return <><Status feed={products}/><Status feed={inventory}/><Status feed={providers}/><Status feed={received}/><MerchandiseReceipt uid={uid} products={products.rows} inventory={inventory.rows} providers={providers.rows} records={received.rows} onSaved={setNotice}/></>;
       case 'robos': return <Panel title="Registros de robo" subtitle="Consulta protegida de las incidencias reportadas">
         {rowTable(robberies,[['Producto',x=>productMap.get(String(x.productoId))?.nombre||x.producto||x.productoId],['Unidades',x=>x.unidades],['Stock restante',x=>x.stockResultante],['Fecha',x=>when(x.fechaHora || x.fechaActualizacion)]])}
       </Panel>;
@@ -264,15 +277,10 @@ export default function App() {
       case 'roles': return <Panel title="Roles y permisos" subtitle="Vista informativa. Los permisos se administran desde la app móvil para evitar cambios accidentales.">
         {rowTable(roles,[['Rol',x=>x.nombre||x.docId],['Permisos de lectura',x=>Object.keys(x.ver||{}).filter(k=>x.ver?.[k]).length],['Permisos de edición',x=>Object.keys(x.editar||{}).filter(k=>x.editar?.[k]).length]],'fechaActualizacion')}
       </Panel>;
-      case 'reportes': {
-        const sorted = [...sales.rows].sort((a,b)=>numDate(b)-numDate(a));
-        const grouped = Array.from({length:7},(_,i)=>{ const d=new Date();d.setHours(0,0,0,0);d.setDate(d.getDate()-(6-i));return {date:d.toLocaleDateString('es-MX'),label:d.toLocaleDateString('es-MX',{weekday:'short',day:'numeric'}),amount:sorted.filter(v=>new Date(numDate(v)).toLocaleDateString('es-MX')===d.toLocaleDateString('es-MX')).reduce((a,v)=>a+Number(v.total||0),0)};});
-        const max = Math.max(1,...grouped.map(x=>x.amount));
-        return <><div className="stat-grid"><IconStat icon="💳" title="Ventas registradas" value={sales.rows.length} sub="Historial disponible en Firebase"/><IconStat icon="📅" title="Importe de hoy" value={money(todayRevenue)} sub={`${todaySales.length} ventas hoy`}/><IconStat icon="💸" title="Retiros" value={money(cashOuts.rows.reduce((a,x)=>a+Number(x.monto||0),0))} sub="Total en registros consultados"/><IconStat icon="📦" title="Productos" value={products.rows.length} sub="Existencias en tiempo real"/></div>
-          <Panel title="Ventas · últimos 7 días" subtitle="Importes calculados sobre las ventas disponibles en Firestore"><Status feed={sales}/><div className="bar-chart">{grouped.map(day=><div className="bar-item" key={day.date}><span>{money(day.amount)}</span><div className="bar-track"><div style={{height:`${Math.max(3,100*day.amount/max)}%`}} className="bar-fill"/></div><small>{day.label}</small></div>)}</div></Panel>
-          <Panel title="Exportar reporte" subtitle="Genera un CSV para Excel o Google Sheets"><button className="btn primary" onClick={()=>csvDownload('posinitwebapp-reporte.csv',['Folio','Fecha','Monto','Método'],sorted.map(v=>[v.id||v.docId,when(v.fechaHora),v.total,v.metodoPago]))}>↓ Descargar reporte de ventas</button></Panel>
-        </>;
-      }
+      case 'reportes': return <><Status feed={sales}/><Status feed={received}/><Status feed={robberies}/><AdvancedStats sales={sales.rows} products={products.rows} inventory={inventory.rows} received={received.rows} robberies={robberies.rows}/></>;
+      case 'categorias': return <CategorySummary products={products.rows} onProducts={()=>navigate('productos')}/>;
+      case 'existencias': return <Panel title="Estado de existencias" subtitle="Productos agotados, en mínimo y disponibles, actualizados en tiempo real"><Status feed={products}/><Status feed={inventory}/><div className="table-wrap"><table><thead><tr><th>Producto</th><th>Categoría</th><th>Unidades</th><th>Mínimo</th><th>Estado</th></tr></thead><tbody>{[...products.rows].sort((a,b)=>Number(stock.get(a.docId)?.stockActual||0)-Number(stock.get(b.docId)?.stockActual||0)).map(p=>{const st=stock.get(p.docId)||{};const n=Number(st.stockActual||0),min=Number(st.stockMinimo||0);return <tr key={p.docId}><td><strong>{p.nombre}</strong><small>{p.codigoBarras}</small></td><td>{p.categoria||'Sin categoría'}</td><td>{n}</td><td>{min}</td><td><span className={'chip '+(n<=min?'danger':'success')}>{n===0?'Agotado':n<=min?'Stock bajo':'Disponible'}</span></td></tr>})}</tbody></table></div></Panel>;
+      case 'colores': return <><Status feed={settings}/><AppearancePanel theme={selectedTheme.id} mobileTheme={generalConfig.tema} mobileAccent={generalConfig.colorPrincipal} busy={themeBusy} onSave={async next=>{setThemeBusy(true);try{await saveWebTheme(uid,next);setNotice('✅ Tema web guardado en Firebase.');}catch(e){setNotice('❌ '+e.message);}finally{setThemeBusy(false);}}}/></>;
       case 'configuracion': {
         const general = settings.rows.find(x=>x.docId==='general') || {};
         return <Panel title="Configuración del negocio" subtitle="Ajustes compartidos con Android e iOS"><Status feed={settings}/><div className="settings-grid"><div className="settings-item"><span>Teléfono de contacto</span><strong>{general.telefonoContacto||'Sin configurar'}</strong></div><div className="settings-item"><span>Notificaciones</span><strong>{general.notificacionesActivas?'Activadas':'Desactivadas'}</strong></div><div className="settings-item"><span>Alertas por stock</span><strong>{general.notificacionesStock?'Activadas':'Desactivadas'}</strong></div><div className="settings-item"><span>Tema de la aplicación</span><strong>{general.tema||'Predeterminado'}</strong></div></div>
@@ -300,7 +308,7 @@ export default function App() {
     return null;
   };
 
-  return <div className="app-shell">
+  return <div className={'app-shell '+(selectedTheme.id==='oscuro'?'web-dark':'')} style={{'--accent':selectedTheme.accent,'--sidebar-color':selectedTheme.sidebar,'--page-background':selectedTheme.background}}>
     {navOpen && <button className="nav-backdrop" onClick={()=>setNavOpen(false)} aria-label="Cerrar menú"/>}
     <aside className={'sidebar '+(navOpen?'open':'')}><div className="sidebar-brand"><div className="logo">P</div><span><strong>POS Init</strong><small>WEB APP · ADMIN</small></span></div>
       <div className="business-chip"><div className="business-avatar">🏪</div><div><strong>{profile.nombreEmpresa||profile.nombreNegocio||'Mi negocio'}</strong><small>Propietario · {profile.businessId}</small></div></div>

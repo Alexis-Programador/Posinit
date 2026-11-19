@@ -158,3 +158,75 @@ export function csvDownload(name, headers, rows) {
   const a = document.createElement('a'); a.href = url; a.download = name; a.click();
   URL.revokeObjectURL(url);
 }
+
+
+// Recepción atómica compatible con los registros de Android.
+// Todas las lecturas se hacen antes de las escrituras dentro de la transacción.
+export async function receiveMerchandiseBatch(uid, cart, provider = '') {
+  assertOwner(uid);
+  if (!Array.isArray(cart) || cart.length === 0 || cart.length > 60) {
+    throw new Error('Selecciona entre 1 y 60 productos para la recepción.');
+  }
+  const ids = cart.map(p => String(p.docId));
+  if (new Set(ids).size !== ids.length) throw new Error('Hay artículos duplicados en la recepción.');
+  if (cart.some(p => !Number.isInteger(Number(p.cantidad)) || Number(p.cantidad) < 1 || Number(p.cantidad) > 2147483647)) {
+    throw new Error('Revisa las cantidades; deben ser números enteros positivos.');
+  }
+  const items = cart.map(p => ({
+    producto: p,
+    productRef: doc(db, 'usuarios', uid, 'productos', String(p.docId)),
+    stockRef: doc(db, 'usuarios', uid, 'inventario', String(p.docId)),
+    recordId: String(Math.floor(Math.random() * 1900000000) + 100000000),
+  }));
+  const batchIds = items.map(x=>x.recordId);
+  if(new Set(batchIds).size !== batchIds.length) throw new Error('No se generaron folios únicos. Intenta de nuevo.');
+  const now = Date.now();
+  const result = await runTransaction(db, async tx => {
+    const data = [];
+    for (const item of items) {
+      const recordRef=doc(db,'usuarios',uid,'registrosMercancia',item.recordId);
+      data.push({
+        ...item,recordRef,
+        product:await tx.get(item.productRef),
+        stock:await tx.get(item.stockRef),
+        existing:await tx.get(recordRef),
+      });
+    }
+    for (const item of data) {
+      if(!item.product.exists()) throw new Error('No existe el producto '+item.producto.nombre+'. Actualiza el catálogo.');
+      if(item.existing.exists()) throw new Error('Folio duplicado. Vuelve a intentarlo.');
+      if(item.stock.exists() && item.stock.data().propietarioUid !== uid) throw new Error('Inventario inválido para '+item.producto.nombre+'.');
+      const p=item.product.data();
+      if(p.propietarioUid!==uid) throw new Error('Este producto pertenece a otra cuenta.');
+      const quantity=Number(item.producto.cantidad);
+      const previous=Number(item.stock.data()?.stockActual ?? 0);
+      const minimum=Number(item.stock.data()?.stockMinimo ?? 0);
+      if(!Number.isSafeInteger(previous)||previous<0||!Number.isSafeInteger(minimum)||minimum<0||previous+quantity>2147483647) {
+        throw new Error('Las existencias de '+p.nombre+' exceden el límite permitido.');
+      }
+      const next=previous+quantity;
+      tx.set(item.stockRef,{
+        productoId:Number(item.producto.docId),propietarioUid:uid,stockActual:next,
+        stockMinimo:minimum,fechaActualizacion:now,
+      },{merge:true});
+      tx.set(item.recordRef,{
+        id:Number(item.recordId),folio:now,productoId:Number(item.producto.docId),
+        producto:String(p.nombre),codigo:String(p.codigoBarras),cantidadRecibida:quantity,
+        stockAnterior:previous,stockResultante:next,proveedor:provider?String(provider).slice(0,120):null,
+        fechaHora:now,propietarioUid:uid,fechaActualizacion:now,
+      });
+    }
+    return data.length;
+  });
+  return result;
+}
+
+// Tema propio de la página de administración. Nunca altera premiumColores.
+export async function saveWebTheme(uid, theme) {
+  assertOwner(uid);
+  const valid = ['azul','celeste','verde','morado','naranja','oscuro'];
+  if (!valid.includes(theme)) throw new Error('Tema no admitido.');
+  await setDoc(doc(db,'usuarios',uid,'configuracion','webApp'), {
+    propietarioUid:uid,temaWeb:theme,fechaActualizacion:Date.now(),
+  },{merge:true});
+}
