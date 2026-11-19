@@ -316,35 +316,6 @@ function AppPrivada() {
   };
 
   // ============================================================
-  // REGRESAR A ACTIVAR CAJA (CIERRA SESIÓN ADMINISTRADOR)
-  // ============================================================
-
-  const regresarActivacion = async () => {
-    if (buscandoUsuario) return;
-
-    try {
-      setMensaje("");
-      await signOut(auth);
-
-      localStorage.removeItem("posInitCajaActivada");
-      localStorage.removeItem("posInitOwnerUid");
-      localStorage.removeItem("posInitBusinessId");
-
-      setCajaActivada(false);
-      setOwnerUid("");
-      setBusinessIdCaja("");
-      setBusinessId("");
-      setNumeroUsuario("");
-      setUsuarioSeleccionado(null);
-      setSesionCaja(false);
-      setPantalla("login");
-    } catch (error) {
-      console.error("Error al regresar a activación:", error);
-      setMensaje("No se pudo cerrar la sesión. Inténtalo de nuevo.");
-    }
-  };
-
-  // ============================================================
   // PIN
   // ============================================================
 
@@ -512,28 +483,6 @@ function AppPrivada() {
 
       <section className="tarjeta-login">
 
-        <button
-          type="button"
-          className="boton-regresar"
-          onClick={regresarActivacion}
-          disabled={buscandoUsuario}
-          style={{
-            width: "auto",
-            display: "inline-flex",
-            alignItems: "center",
-            padding: "10px 16px",
-            marginBottom: "18px",
-            background: "#edf4fa",
-            color: "#123450",
-            border: "1px solid #d4e1ed",
-            borderRadius: "10px",
-            fontWeight: 700,
-            cursor: "pointer",
-          }}
-        >
-          ← Regresar
-        </button>
-
         <div className="marca">
 
           <div className="logo-pos">
@@ -644,39 +593,6 @@ function AppPrivada() {
           </button>
 
         </form>
-
-        {/* Acceso independiente a la administración desde Android/iOS */}
-        <div style={{
-          marginTop: 16,
-          padding: "14px",
-          borderRadius: 14,
-          border: "1px solid #c7d2fe",
-          background: "#eef2ff",
-          textAlign: "center"
-        }}>
-          <p style={{ margin: "0 0 10px", color: "#1e3a8a", fontWeight: 800 }}>
-            📱 ¿Quieres revisar tu app móvil desde la web?
-          </p>
-          <a
-            href={`${import.meta.env.BASE_URL}posinitwebapp/`}
-            target="_blank"
-            rel="noopener noreferrer"
-            style={{
-              display: "block",
-              padding: "13px 16px",
-              borderRadius: 10,
-              background: "#2563eb",
-              color: "#ffffff",
-              fontWeight: 800,
-              textDecoration: "none"
-            }}
-          >
-            🖥️ Abrir POS Init WebApp
-          </a>
-          <p style={{ margin: "9px 0 0", color: "#475569", fontSize: 12 }}>
-            Solo propietarios · administración del negocio
-          </p>
-        </div>
 
         <div className="pie-login">
 
