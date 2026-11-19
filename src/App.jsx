@@ -645,6 +645,39 @@ function AppPrivada() {
 
         </form>
 
+        {/* Acceso independiente a la administración desde Android/iOS */}
+        <div style={{
+          marginTop: 16,
+          padding: "14px",
+          borderRadius: 14,
+          border: "1px solid #c7d2fe",
+          background: "#eef2ff",
+          textAlign: "center"
+        }}>
+          <p style={{ margin: "0 0 10px", color: "#1e3a8a", fontWeight: 800 }}>
+            📱 ¿Quieres revisar tu app móvil desde la web?
+          </p>
+          <a
+            href={`${import.meta.env.BASE_URL}posinitwebapp/`}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              display: "block",
+              padding: "13px 16px",
+              borderRadius: 10,
+              background: "#2563eb",
+              color: "#ffffff",
+              fontWeight: 800,
+              textDecoration: "none"
+            }}
+          >
+            🖥️ Abrir POS Init WebApp
+          </a>
+          <p style={{ margin: "9px 0 0", color: "#475569", fontSize: 12 }}>
+            Solo propietarios · administración del negocio
+          </p>
+        </div>
+
         <div className="pie-login">
 
           <span>
