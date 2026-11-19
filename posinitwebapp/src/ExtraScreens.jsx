@@ -11,6 +11,13 @@ function dateKey(ms) {
 }
 const todayKey=()=>dateKey(Date.now());
 
+function cashFromSale(sale) {
+  const method = String(sale.metodoPago || '').toLowerCase();
+  if (method === 'efectivo') return Number(sale.total || 0);
+  if (method === 'mixto') return Number(sale.efectivoMixto || 0);
+  return 0;
+}
+
 export function DailySales({sales,cashOuts,cuts,onDetails}) {
   const [tab,setTab]=useState('ventas');
   const today=todayKey();
@@ -18,7 +25,7 @@ export function DailySales({sales,cashOuts,cuts,onDetails}) {
   const withdrawals=cashOuts.filter(x=>dateKey(time(x.fechaHora))===today);
   const cutsToday=cuts.filter(x=>dateKey(time(x.fechaHora))===today);
   const revenue=salesToday.reduce((v,x)=>v+Number(x.total||0),0);
-  const cash=salesToday.reduce((v,x)=>v+(String(x.metodoPago).toLowerCase()==='efectivo'?Number(x.total||0):String(x.metodoPago).toLowerCase()==='mixto'?Number(x.efectivoMixto||0):0),0);
+  const cash=salesToday.reduce((v,x)=>v+cashFromSale(x),0);
   const cashOut=withdrawals.reduce((v,x)=>v+Number(x.monto||0),0);
   return <div className="extended-page">
     <div className="stats-highlights">
