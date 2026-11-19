@@ -42,6 +42,11 @@ jobs:
           VITE_POS_PAY_API_URL: https://pos-init-pay-api.alexis52gamer.workers.dev
         run: npm run build
 
+      # Construir panel administrativo independiente en una subruta.
+      # La compilación principal ya creó dist; no eliminarla.
+      - name: Compilar POSInitWebApp (propietario)
+        run: npx vite build --config posinitwebapp/vite.config.js
+
       # Configurar GitHub Pages
       - name: Configurar Pages
         uses: actions/configure-pages@v5
