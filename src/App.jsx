@@ -316,6 +316,36 @@ function AppPrivada() {
   };
 
   // ============================================================
+  // REGRESAR A LA ACTIVACIÓN DE LA CAJA
+  // ============================================================
+
+  const regresarActivacion = async () => {
+    if (buscandoUsuario) return;
+
+    try {
+      setMensaje("");
+      await signOut(auth);
+
+      localStorage.removeItem("posInitCajaActivada");
+      localStorage.removeItem("posInitOwnerUid");
+      localStorage.removeItem("posInitBusinessId");
+
+      setCajaActivada(false);
+      setOwnerUid("");
+      setBusinessIdCaja("");
+      setBusinessId("");
+      setNumeroUsuario("");
+      setUsuarioSeleccionado(null);
+      setEstadoPin(null);
+      setSesionCaja(false);
+      setPantalla("login");
+    } catch (error) {
+      console.error("Error al regresar a la activación:", error);
+      setMensaje("No se pudo regresar. Inténtalo nuevamente.");
+    }
+  };
+
+  // ============================================================
   // PIN
   // ============================================================
 
@@ -482,6 +512,30 @@ function AppPrivada() {
         </aside>
 
       <section className="tarjeta-login">
+
+        <button
+          type="button"
+          className="boton-regresar"
+          onClick={regresarActivacion}
+          disabled={buscandoUsuario}
+          style={{
+            width: "auto",
+            display: "inline-flex",
+            alignItems: "center",
+            alignSelf: "flex-start",
+            justifyContent: "center",
+            padding: "9px 15px",
+            marginBottom: "14px",
+            background: "#edf4fa",
+            color: "#123450",
+            border: "1px solid #d4e1ed",
+            borderRadius: "10px",
+            fontWeight: 700,
+            cursor: buscandoUsuario ? "not-allowed" : "pointer",
+          }}
+        >
+          ← Regresar
+        </button>
 
         <div className="marca">
 
