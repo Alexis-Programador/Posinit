@@ -209,10 +209,12 @@ function ModalCobro({ total = 0, procesando = false, onCerrar, onConfirmar, owne
         <button type="button" onClick={() => { setMostrarDemoMixto(true); setAdvertenciaMixto(""); setError(""); }}
           disabled={procesando || stripePagado || Boolean(pagoId) || ENTORNO_PAGOS === "live"}
           style={{ marginTop: 10, width: "100%", padding: 12, borderRadius: 12, border: "1px solid #93c5fd", background: "#eff6ff", color: "#1d4ed8", fontWeight: 800, cursor: "pointer" }}>
-          💵 + 💳 Cobro combinado (integración en pruebas)
+          💵 + 💳 Cobro combinado {ENTORNO_PAGOS === "live" ? "(no disponible en cobros reales)" : "(modo de pruebas)"}
         </button>
         <p style={{ margin: "6px 0 0", fontSize: 12, color: "#64748b" }}>
-          Prepara pagos individuales y observa Stripe. El registro final requiere actualizar Ventas.jsx.
+          {ENTORNO_PAGOS === "live"
+            ? "El cobro combinado está deshabilitado en el entorno real. Por ahora, utiliza un método de pago individual. No significa que falle Ventas.jsx."
+            : "Modo de pruebas: prepara los pagos y comprueba las confirmaciones antes de registrar la venta."}
         </p>
         {metodoPago === "efectivo" ? <>
           <label htmlFor="dineroRecibido" style={{ display: "block", marginTop: 22, marginBottom: 8, fontWeight: 800 }}>Dinero recibido</label>
